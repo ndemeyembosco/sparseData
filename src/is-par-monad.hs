@@ -1,21 +1,25 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 
-import           Control.Monad
+import           Control.Monad 
 import qualified Data.Vector.Unboxed as U 
---(freeze, take)  
 import qualified Data.Vector.Unboxed.Mutable as V
 import qualified Data.Vector as VU
 import System.Environment (getArgs)
 import qualified System.Random.PCG.Fast.Pure as SR 
 import Data.Bits 
--- import System.CPUTime 
-import System.Clock 
+import System.CPUTime 
 import Text.Printf  
-import Control.Parallel.Strategies 
+import Control.Monad.IO.Class (liftIO)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (take) 
+import Data.Maybe (fromJust)
+import Data.Foldable (foldl', foldr')
+import Patterns 
+import Data.IORef 
 
 
 data ProblemSize = ProblemSize {
@@ -47,19 +51,58 @@ getClass c = case c of
   'S'  -> Right class_s
   _   -> Left "undefined problem size"
 
+merge :: U.Vector Int -> U.Vector Int  -> U.Vector Int 
+{-# INLINE merge #-}
+merge !v1 !v2  = unsafePerformIO $ do  
+      to_return <- V.new fin_len
+      mv1       <- U.unsafeThaw v1 
+      mv2       <- U.unsafeThaw v2 
+      go 0 0 0 mv1 mv2 to_return
+  where
+    len_v1 = U.length v1 
+    len_v2 = U.length v2 
+    fin_len = len_v1 + len_v2 
+    {-# INLINE go #-}
+    go i j k vec1 vec2 to_return 
+                    | (i < len_v1 && j < len_v2) = do 
+                                    e1 <- V.read vec1 i 
+                                    e2 <- V.read vec2 j 
+                                    if e1 <= e2 
+                                      then do 
+                                        V.write to_return k e1 
+                                        go (i + 1) j (k + 1) vec1 vec2 to_return
+                                      else do 
+                                        V.write to_return k e2 
+                                        go i (j + 1) (k + 1) vec1 vec2 to_return
+                    | i < len_v1 = do 
+                      e <- V.read vec1 i 
+                      V.write to_return k e 
+                      go (i + 1) j (k + 1) vec1 vec2 to_return
+                    | j < len_v2 = do 
+                      e <- V.read vec2 j 
+                      V.write to_return k e 
+                      go i (j + 1) (k + 1) vec1 vec2 to_return
+                    | otherwise = do 
+                      v_to_return <- U.unsafeFreeze to_return
+                      return v_to_return
 
-  -- usingIO :: a -> Strategy a -> IO a
+local_sort :: Int -> Int ->  U.Vector Int -> U.Vector Int 
+{-# INLINE local_sort #-}
+local_sort !arr_length !max_elem !to_sort_v = unsafePerformIO $ do 
+      !temp_l    <- V.replicate (max_elem + 1) (0 :: Int)
+      !sorted_l  <- V.replicate arr_length (0 :: Int)  -- list of sorted elements to return
+      !freqs     <- countFreqs temp_l to_sort_v 
+      !acc_fs    <- accumFreqs freqs max_elem
+      !ans_fs    <- writeSortedL acc_fs sorted_l to_sort_v 
+      !vec <- U.unsafeFreeze ans_fs
+      return vec 
 
- 
--- divide the array in n subparts, (task is finding how many subparts are efficient)
--- give copy of equivalent copy of temp to subpart 
--- count freqs for each subpart 
--- -- write function to combine results (sum up values in same position of temp (provided the subarrays are of same length))
-
-
--- look into turning this into a divide and conquer strategy for 
--- mutable vectors (or algorithm in the par monad)
-
+global_sort :: Int -> Int -> Int -> U.Vector Int -> (U.Vector Int) 
+{-# INLINE global_sort #-}
+global_sort !par_n !arr_length !max_elem !to_sort_v = unsafePerformIO $ do 
+                  let !ans = parDivConqGenV to_sort_v par_n (\v -> local_sort (U.length v) (U.maximum v) v)  merge 
+                  return ans 
+                                
 countFreqs :: V.IOVector Int -> U.Vector Int -> IO (V.IOVector Int)
 {-# INLINE countFreqs #-}
 countFreqs !temp !v = do 
@@ -68,10 +111,7 @@ countFreqs !temp !v = do
                                   tx <- V.read temp digit_of_Ai
                                   V.write temp digit_of_Ai (tx + 1)
                         return temp 
-                           
 
--- use same divide and conquer strategy as above
--- change conquer/merge function
 
 accumFreqs :: V.IOVector Int -> Int -> IO (V.IOVector Int)
 {-# INLINE accumFreqs #-}
@@ -83,10 +123,6 @@ accumFreqs !temp !max_elem = do
                                return temp  
                                   
 
--- do the same here!
--- actually, we can do countFreqs, accumFreqs and writeSortedL per thread 
--- and combine at the end. -- I think this is easier, but implement both to see if there 
--- is any difference in both.
 writeSortedL :: V.IOVector Int -> V.IOVector Int -> U.Vector Int -> IO (V.IOVector Int)
 {-# INLINE writeSortedL #-}
 writeSortedL !temp !sorted_l !to_sort = do 
@@ -102,8 +138,6 @@ writeSortedL !temp !sorted_l !to_sort = do
                                                             V.write sorted_l cx x
                                           return sorted_l
                       
-
-
 main :: IO ()
 main = do
   (size_l : max_it_str : _)  <- getArgs
@@ -129,26 +163,20 @@ main = do
             let seed = 271828183
             my_gen    <- SR.initialize seed 
             to_sort_v <- getRandomVals max_elem arr_length my_gen
-            sorted_l  <- V.replicate arr_length (0 :: Int)  -- list of sorted elements to return
-            start     <- getTime ProcessCPUTime
+            start     <- getCPUTime
             !l1 <- VU.forM (VU.enumFromN 0 max_iter :: VU.Vector Int) $ \iter -> do 
-              temp   <- V.replicate (max_elem + 1) (0 :: Int) 
-              t      <- countFreqs temp to_sort_v
-              f      <- accumFreqs t max_elem   
-              s      <- writeSortedL f sorted_l to_sort_v
-              printf "%d\n" (iter + 1) 
-              return s
-                    
-            
-            end <- getTime ProcessCPUTime
+                    let !s = global_sort 8 arr_length max_elem to_sort_v
+                    printf "%d\n" (iter + 1)
+                    return s 
+            end <- getCPUTime  
             printf "IS Benchmark Completed\n"
-            printf "Class           =                    %c\n" size 
+            printf "Class                               %c\n" size 
             printf "Size            =                    %d\n" arr_length
             printf "Iterations      =                    %d\n" max_iter
             let sorted_l = VU.last l1  
-            to_print <- U.unsafeFreeze $ V.drop (arr_length - 20) sorted_l
-            let diff = (fromIntegral ((nsec end) - nsec start)) / (10^9)
+            let to_print = U.drop (arr_length - 20) sorted_l
+            let diff = (fromIntegral (end - start)) / (10^12)
             print $ "sorted list: " ++ (show  to_print)
             printf "Time in seconds =                    %0.9f sec\n" (diff :: Double)
-            printf "Individual time =                    %0.9f sec\n" (diff / fromIntegral max_iter :: Double)
+            printf "Individual time =                  %0.9f sec\n" (diff / fromIntegral max_iter :: Double)
             

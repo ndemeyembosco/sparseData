@@ -11,6 +11,7 @@ import Control.Monad.Primitive
 import qualified Control.Monad as A 
 import System.CPUTime 
 import Text.Printf 
+import Control.Parallel.Strategies 
 import qualified System.Random.PCG.Fast.Pure as SR 
 
 
@@ -61,7 +62,7 @@ gauss_uni_distr !c !rand_vals = do
 
                                 -- increment each of the references in the list 
                                 -- if the value m falls in the square annulus l <= max (|x_k|, |y_k|) <= l
-                                U.forM_ (U.enumFromN 0 9) $ \l -> do 
+                                BV.forM_ (BV.enumFromN 0 9) $ \l -> do 
                                   if (fromIntegral l <= m && m < (fromIntegral l + 1.0)) 
                                   then 
                                     do 
@@ -98,7 +99,8 @@ main = do
               my_gen    <- SR.initialize seed 
               !rand_vals <- getRandomVals rand_nums my_gen 
               end2 <- getCPUTime
-              (!may_xys, !sumxs, !sumys, !pairs) <- gauss_uni_distr c rand_vals
+              p <- gauss_uni_distr c rand_vals
+              (!may_xys, !sumxs, !sumys, !pairs) <- runEvalIO $ parTuple4 (parTraversable rpar) rseq rpar rpar $ p  
               end <- getCPUTime
 
               print "end timing ..."
