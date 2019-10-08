@@ -33,7 +33,6 @@ dependencies:
 - sparse-linear-algebra
 - deepseq 
 - ghc-prim
-
 # library:
 #   source-dirs: src
 
@@ -78,6 +77,7 @@ executables:
     - transformers 
     - clock
     - deepseq 
+    - quickcheck
   combina-test:
     main:           combinatorTest.hs
     other-modules: 
@@ -120,6 +120,26 @@ executables:
     - mtl 
     - containers
     - parallel 
+  check:
+    main: Check.hs 
+    other-modules:
+    - SparseData 
+    source-dirs: src  
+    ghc-options: 
+    - -threaded
+    - -rtsopts
+    - -O2
+    - -fllvm
+    - -optlo-O3
+    - -eventlog 
+    - -funfolding-use-threshold=16
+    dependencies:
+    - vector 
+    - QuickCheck 
+    - monad-par 
+    
+
+
   # cg:
   #   main:                cg.hs
   #   source-dirs:         src
