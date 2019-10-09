@@ -167,124 +167,142 @@ toNat n = S (toNat (n - 1))
 
 
 
-----------------------------------------------------------------------------------
-
-
+--------------------------------------------------------------------------------------------------------------
 class Sparse rep a where 
   data SparseData rep a :: * 
   smap                  :: (U.Unbox a, U.Unbox b, NFData a, NFData b, Ord b) => (a -> b) -> SparseData rep a -> SparseData rep b  
-  szipWith              :: (U.Unbox a, U.Unbox b, U.Unbox c, Num a, Num b, Num c) => (a -> b -> c) -> SparseData rep a -> SparseData rep b  -> SparseData rep c  
+  szipWith              :: (U.Unbox a, U.Unbox b, U.Unbox c, Num a, Num b, Num c, Eq c) => (a -> b -> c) -> SparseData rep a -> SparseData rep b  -> SparseData rep c  
   (#.)                  :: (U.Unbox a, Num a) => SparseData rep a  -> U.Vector a ->  U.Vector a 
   
 
 
 
 -- the coordinate representation 
-
 data COO 
 
 instance Sparse COO a where 
-  data instance SparseData COO a  = COO { coo_vals :: U.Vector (a, Int, Int)}
+  data instance SparseData COO a  = COO { coo_vals :: U.Vector (a, Int, Int), width :: Int, height :: Int}
   smap !f !v = let 
-                  vec  = coo_vals v   
-               in v { coo_vals = mapParN 1 (\(x, i, j) -> (f x, i, j)) vec} 
-  szipWith !func !v1 !v2 = if U.null vec1 
-                           then COO $ U.map (\(t, i, j) -> (func 0 t, i, j)) vec2 
-                           else if U.null vec2 
-                            then COO $ U.map (\(t, i, j) -> (func t 0, i, j)) vec1  
-                            else COO (U.map (\(!x, !i, !j) -> app_func func x i j vec2) vec1)   
+                  vec  = coo_vals v 
+                  w    = width v 
+                  h    = height v   
+               in v { coo_vals = mapParN 1 (\(x, i, j) -> (f x, i, j)) vec, width=w, height=h} 
+  szipWith !func !v1 !v2 = if not ((h1 == h2) && (w1 == w2))
+                           then error "cannot zip matrices of different dimentions" 
+                           else 
+                           if U.null vec1 
+                               then COO (U.map (\(t, i, j) -> (func 0 t, i, j)) vec2) w2 h2  
+                               else 
+                               if U.null vec2 
+                                then COO (U.map (\(t, i, j) -> (func t 0, i, j)) vec1) w1 h1   
+                                else COO ((U.map (\(!x, !i, !j) -> app_func func x i j vec2) vec1) U.++ (filterZeros $ U.map (\(y, w, z) -> func_app func y w z vec1) vec2)) w1 h1    
                   where  
                       vec1 = coo_vals v1
                       vec2 = coo_vals v2 
-                      app_func !f !a !i !j !vec = U.head $!                                 -- consider changing this implementation
-                                                       U.mapMaybe (\(!b, !x, !y) -> if i == x && j == y then Just (f a b, i, j) else Nothing) vec -- exploit parallelism
+                      h1   = height v1 
+                      h2   = height v2 
+                      w1   = width v1 
+                      w2   = width v2 
+                      app_func !f !a !i !j !vec = app_func' f a i j $ U.find (\(w, x, y) -> x == i && j == y) vec 
+                      app_func' !f r i j Nothing           = (f r 0, i, j) 
+                      app_func' !f r i j (Just (!t, _, _)) = (f r t, i, j) 
 
-  (#.) !mat !vec  =  undefined
-    -- U.imap (\(!i) (!x) -> U.sum $! U.map (\(!a, _, _) -> a*x) $! colums i mat) vec 
-    --         where
-    --           colums !i !m = U.filter (\(!a, _, !n) -> n == i) $! coo_vals m 
+                      func_app f !a !i !j !vec = func_app' f a i j $ U.find (\(w, x, y) -> x == i && j == y) vec 
+                      func_app' !f a i j Nothing   = (f 0 a, i, j)
+                      func_app' !f a i j (Just _)  = (0, i, j) 
+
+                      filterZeros vec = U.filter (\(k, _, _) -> k /= 0) vec 
+
+
+
+  (#.) !mat !vec  = U.imap (\(!i) (!x) -> U.sum $! U.map (\(!a, _, _) -> a*x) $! colums i mat) vec 
+                where
+                  colums !i !m = U.filter (\(!a, _, !n) -> n == i) $! coo_vals m 
 
             
 -- -- the compressed sparse row representation
 
--- data CSR 
+data CSR 
 
--- instance Sparse CSR a where 
---   data instance SparseData CSR a = CSR { row_offsets :: U.Vector Int, columns :: U.Vector Int,  csr_vals :: U.Vector a, max_col :: !Int}
---   smap f v = let vec = csr_vals v in v {csr_vals = mapParN 1 f vec}
---   szipWith !func !v1@CSR{row_offsets = rows_1, columns = cols_1, csr_vals = vals_1, max_col = m_1} 
---                  !v2@CSR{row_offsets = rows_2, columns = cols_2, csr_vals = vals_2, max_col = m_2} = CSR {
---                                                                                                            row_offsets  = U.zipWith max rows_1 rows_2
---                                                                                                           , columns     = cols 
---                                                                                                           , csr_vals    = vals 
---                                                                                                           , max_col     = max_e
---                                                                                                           }
---                                                                               where 
---                                                                                 (cols, vals) = mkVec max_e min_e
---                                                                                 max_e  = max m_1 m_2
---                                                                                 min_e  = min m_1 m_2 
---                                                                                 mkVec !len_max !len_min  = unsafePerformIO $ do 
---                                                                                         !ans_cols  <- V.new len_max  
---                                                                                         !ans_vals  <- V.new len_max
+instance Sparse CSR a where 
+  data instance SparseData CSR a = CSR { row_offsets :: U.Vector Int, columns :: U.Vector Int,  csr_vals :: U.Vector a, max_col :: !Int, max_rows :: !Int} 
+  smap f v = let vec = csr_vals v in v {csr_vals = mapParN 1 f vec}
+  szipWith !func !v1@CSR{row_offsets = rows_1, columns = cols_1, csr_vals = vals_1, max_col = m_1, max_rows = r_1} 
+                 !v2@CSR{row_offsets = rows_2, columns = cols_2, csr_vals = vals_2, max_col = m_2, max_rows = r_2} = 
+                    CSR {
+                                                                                                           row_offsets  = U.zipWith max rows_1 rows_2
+                                                                                                          , columns     = cols 
+                                                                                                          , csr_vals    = vals 
+                                                                                                          , max_col     = max_e
+                                                                                                          , max_rows    = max_r
+                                                                                                          }
+                                                                              where 
+                                                                                (cols, vals) = mkVec max_e min_e
+                                                                                max_e  = max m_1 m_2
+                                                                                max_r  = max r_1 r_2
+                                                                                min_e  = min m_1 m_2 
+                                                                                mkVec !len_max !len_min  = unsafePerformIO $ do 
+                                                                                        !ans_cols  <- V.new len_max  
+                                                                                        !ans_vals  <- V.new len_max
 
---                                                                                         !mcols_1 <- U.unsafeThaw cols_1 
---                                                                                         !mcols_2 <- U.unsafeThaw cols_2 
+                                                                                        !mcols_1 <- U.unsafeThaw cols_1 
+                                                                                        !mcols_2 <- U.unsafeThaw cols_2 
 
---                                                                                         !mvals_1 <- U.unsafeThaw vals_1 
---                                                                                         !mvals_2 <- U.unsafeThaw vals_2
+                                                                                        !mvals_1 <- U.unsafeThaw vals_1 
+                                                                                        !mvals_2 <- U.unsafeThaw vals_2
 
 
---                                                                                         forM_ [0..len_min - 1] $ \i -> do 
---                                                                                           !x <- V.read mcols_1 i
---                                                                                           !y <- V.read mcols_2 i  
+                                                                                        forM_ [0..len_min - 1] $ \i -> do 
+                                                                                          !x <- V.read mcols_1 i
+                                                                                          !y <- V.read mcols_2 i  
 
---                                                                                           !a <- V.read mvals_1 i 
---                                                                                           !b <- V.read mvals_2 i 
+                                                                                          !a <- V.read mvals_1 i 
+                                                                                          !b <- V.read mvals_2 i 
 
---                                                                                           if x < y then do 
---                                                                                                 V.write ans_cols i x          -- write a 
---                                                                                                 V.write ans_cols (i + 1) y    -- write b 
+                                                                                          if x < y then do 
+                                                                                                V.write ans_cols i x          -- write a 
+                                                                                                V.write ans_cols (i + 1) y    -- write b 
 
---                                                                                                 V.write ans_vals i (func a 0) 
---                                                                                                 V.write ans_vals (i + i) (func 0 b)
---                                                                                           else if x > y then do 
---                                                                                                 V.write ans_cols (i + 1) x    -- write b 
---                                                                                                 V.write ans_cols i y          -- write a 
+                                                                                                V.write ans_vals i (func a 0) 
+                                                                                                V.write ans_vals (i + i) (func 0 b)
+                                                                                          else if x > y then do 
+                                                                                                V.write ans_cols (i + 1) x    -- write b 
+                                                                                                V.write ans_cols i y          -- write a 
 
---                                                                                                 V.write ans_vals (i + 1) (func a 0) 
---                                                                                                 V.write ans_vals i (func 0 b)
---                                                                                           else do 
---                                                                                                 V.write ans_cols i x     -- need to apply func on both a and b
---                                                                                                 V.write ans_vals i (func a b)
---                                                                                         if len_min == m_1 then do 
---                                                                                           forM_ [len_min..len_max - 1] $ \i -> do 
---                                                                                             !y <- V.read mcols_2 i 
---                                                                                             V.write ans_cols i y 
+                                                                                                V.write ans_vals (i + 1) (func a 0) 
+                                                                                                V.write ans_vals i (func 0 b)
+                                                                                          else do 
+                                                                                                V.write ans_cols i x     -- need to apply func on both a and b
+                                                                                                V.write ans_vals i (func a b)
+                                                                                        if len_min == m_1 then do 
+                                                                                          forM_ [len_min..len_max - 1] $ \i -> do 
+                                                                                            !y <- V.read mcols_2 i 
+                                                                                            V.write ans_cols i y 
 
---                                                                                             !b <- V.read mvals_2 i 
---                                                                                             V.write ans_vals i (func 0 b) 
---                                                                                         else do 
---                                                                                           forM_ [len_min..len_max - 1] $ \i -> do 
---                                                                                             !x <- V.read mcols_1 i 
---                                                                                             V.write ans_cols i x 
+                                                                                            !b <- V.read mvals_2 i 
+                                                                                            V.write ans_vals i (func 0 b) 
+                                                                                        else do 
+                                                                                          forM_ [len_min..len_max - 1] $ \i -> do 
+                                                                                            !x <- V.read mcols_1 i 
+                                                                                            V.write ans_cols i x 
 
---                                                                                             !a <- V.read mvals_1 i 
---                                                                                             V.write ans_vals i (func a 0) 
+                                                                                            !a <- V.read mvals_1 i 
+                                                                                            V.write ans_vals i (func a 0) 
 
---                                                                                         U.unsafeFreeze mcols_1
---                                                                                         U.unsafeFreeze mcols_2 
+                                                                                        U.unsafeFreeze mcols_1
+                                                                                        U.unsafeFreeze mcols_2 
 
---                                                                                         U.unsafeFreeze mvals_1 
---                                                                                         U.unsafeFreeze mvals_2 
+                                                                                        U.unsafeFreeze mvals_1 
+                                                                                        U.unsafeFreeze mvals_2 
 
---                                                                                         !vans_cols <- U.unsafeFreeze ans_cols 
---                                                                                         !vans_vals <- U.unsafeFreeze ans_vals
---                                                                                         return (vans_cols, vans_vals)   
+                                                                                        !vans_cols <- U.unsafeFreeze ans_cols 
+                                                                                        !vans_vals <- U.unsafeFreeze ans_vals
+                                                                                        return (vans_cols, vans_vals)   
                                                                                                 
---   (#.) !mat@CSR{row_offsets = rows, columns = cols, csr_vals = vals, max_col = _} !vec = U.imap (\i x -> dot_p i cols (find_row i x vals) vec) $ U.init rows
---                                                                               where
---                                                                                 dot_p i cols !v1 !v2 = U.sum $ U.imap (\j e -> if (cols U.! i) == j then e * (v1 U.! i) else 0) v2 
---                                                                                 find_row index elem values = U.slice index ((rows U.! (index + 1)) - elem) vals 
+  (#.) !mat@CSR{row_offsets = rows, columns = cols, csr_vals = vals, max_col = _} !vec = U.imap (\i x -> dot_p i cols (find_row i x vals) vec) $ U.init rows
+                                                                              where
+                                                                                dot_p i cols !v1 !v2 = U.sum $ U.imap (\j e -> if (cols U.! i) == j then e * (v1 U.! i) else 0) v2 
+                                                                                find_row index elem values = U.slice index ((rows U.! (index + 1)) - elem) vals 
 
 
       
@@ -297,11 +315,44 @@ scale   :: (U.Unbox a, Num a, Ord a, Sparse rep a, NFData a) => a -> SparseData 
 scale x = smap (*x)
 
 
-(#+) :: (Sparse rep a, Num a, U.Unbox a) => SparseData rep a  -> SparseData rep a  -> SparseData rep a  
+(#+) :: (Sparse rep a, Num a, U.Unbox a, Eq a) => SparseData rep a  -> SparseData rep a  -> SparseData rep a  
 (#+) = szipWith (+)  
 
-(#-) :: (Sparse rep a, Num a, U.Unbox a) => SparseData rep a  -> SparseData rep a  -> SparseData rep a 
+(#-) :: (Sparse rep a, Num a, U.Unbox a, Eq a) => SparseData rep a  -> SparseData rep a  -> SparseData rep a 
 (#-) = szipWith (-)
+
+
+
+
+cg :: (Num a, Sparse rep a, U.Unbox a, Eq a, Floating a) => Int -> Int -> U.Vector a -> SparseData rep a ->  U.Vector a -> (a, U.Vector a)
+{-# INLINE cg #-}
+cg !size !iters !z !a !x = 
+    let 
+        !r     = x 
+        !p     = r  
+        !rho   = r <.> r 
+    in go a z x rho p r 0 
+    where
+        {-# INLINE go #-}
+        go !a !z !x !d !p !r !i | i == iters     =  
+                                    let 
+                                        !residual = (a #. z) ^-^ x 
+                                        !to_ret = sqrt $ residual <.> residual 
+                                    in (to_ret, z) 
+                                | otherwise =  
+                                    let 
+                                        !q         = a #. p 
+                                        !alpha     = d / (p <.> q) 
+                                        !new_z     = z ^+^ (alpha .* p) 
+                                        !new_r     = r ^-^ (alpha .* q)  
+                                        !new_d     = new_r <.> new_r 
+                                        !beta      = new_d / d  
+                                        !new_p     = new_r ^+^ (beta .* p) 
+                                    in go a new_z x new_d new_p new_r (i + 1)
+        (<.>) v1 v2   = U.sum $ U.zipWith (*) v1 v2 
+        (^+^)         = U.zipWith (+)
+        (^-^)         = U.zipWith (-)  
+        (.*) c        = U.map (*c)  
 
 
 

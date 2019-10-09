@@ -137,6 +137,7 @@ executables:
     - vector 
     - QuickCheck 
     - monad-par 
+    - containers 
     
 
 
