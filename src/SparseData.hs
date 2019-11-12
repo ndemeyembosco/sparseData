@@ -22,157 +22,16 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad 
 import Control.Monad.ST (runST)
 import Patterns (parDivConqGenV, parDivConqZipsGenV)
+import qualified Data.Map as M  
+            
 
-
--- instance PrimMonad P.ParIO where 
---   type PrimState P.ParIO = RealWorld 
---   primitive = liftIO . primitive 
-
-parMap :: (NFData a, NFData b) => (a -> b) -> [a] -> [b] 
-parMap !f !xs = P.runPar $ mapM (P.spawnP . f) xs >>= mapM get
-
-smapPar :: (NFData a, NFData b) => (a -> b) -> VU.Vector a -> VU.Vector b 
-smapPar !f !xs = P.runPar $ VU.mapM (P.spawnP . f) xs >>= VU.mapM get
-  --  unsafePerformIO $ P.runParIO $ do 
-  --         let !len = U.length vec
-  --         !mvec    <- U.unsafeThaw vec   
-  --         !ivars <- forM [0..len - 1] $ \i -> do 
-  --           !e    <- V.read mvec i 
-  --           ((!ivar) :: P.IVar b) <- new 
-  --           fork $ let !ans = f e in put ivar ans 
-  --           return ivar 
-
-  --         !to_ret <- mapM get ivars 
-  --         return to_ret
-
-          -- forM_ [0..len - 1] $ \i -> do 
-          --   let !ivar = ivars VU.! i 
-          --   !e    <- get ivar 
-          --   -- V.write mvec1 i e 
-          -- liftIO $! U.unsafeFreeze mvec1 
-
-
-
-{-# INLINE mapParN #-}
-mapParN :: (NFData a, NFData b, U.Unbox a, U.Unbox b, Ord b) => Int -> (a -> b) -> U.Vector a -> U.Vector b
-mapParN !n !f !v = parDivConqGenV v n (U.map f) (U.++)
-
-
-{-# INLINE imapParN #-}
-imapParN :: (NFData a, NFData b, U.Unbox a, U.Unbox b, Ord b) => Int -> (Int -> a -> b) -> U.Vector a -> U.Vector b
-imapParN !n !f !v = parDivConqGenV v n (U.imap f) (U.++) 
-
-
-{-# INLINE filterParN #-}
-filterParN :: (NFData a, U.Unbox a, Ord a) => Int -> (a -> Bool) -> U.Vector a -> U.Vector a
-filterParN !n !f !v = parDivConqGenV v n (U.filter f) (U.++)
-
-
-{-# INLINE ifilterParN #-}
-ifilterParN :: (NFData a, U.Unbox a, Ord a) => Int -> (Int -> a -> Bool) -> U.Vector a -> U.Vector a
-ifilterParN !n !f !v = parDivConqGenV v n (U.ifilter f) merge
-
-{-# INLINE mapMaybeParN #-}
-mapMaybeParN :: (NFData a, NFData b, U.Unbox a, U.Unbox b, Ord b) => Int -> (a -> Maybe b) -> U.Vector a -> U.Vector b
-mapMaybeParN !n !f !v = parDivConqGenV v n (U.mapMaybe f) merge
-
-
-{-# INLINE imapMaybeParN #-}
-imapMaybeParN :: (NFData a, NFData b, U.Unbox a, U.Unbox b, Ord b) => Int -> (Int -> a -> Maybe b) -> U.Vector a -> U.Vector b
-imapMaybeParN !n !f !v = parDivConqGenV v n (U.imapMaybe f) merge
-
-
-{-# INLINE zipWithParN #-}
-zipWithParN :: (NFData a, NFData b, NFData c 
-              , U.Unbox a, U.Unbox b, U.Unbox c
-              , Ord c) 
-            => Int -> (a -> b -> c) 
-            -> U.Vector a -> U.Vector b -> U.Vector c 
-zipWithParN par_n f v1 v2 = imapParN par_n (\(!i) (!x) -> app_func f x i v2) v1 
-                      where 
-                        app_func !f !x !i !vec = U.head $! imapMaybeParN par_n (\(!j) (!y) -> if i == j then Just $ f x y else Nothing) vec   
-
-
-
-
-merge :: (U.Unbox a, Ord a) => U.Vector a -> U.Vector a  -> U.Vector a
-{-# INLINE merge #-}
-merge !v1 !v2  = unsafePerformIO $ do  
-      to_return <- V.new fin_len
-      mv1       <- U.unsafeThaw v1 
-      mv2       <- U.unsafeThaw v2 
-      go 0 0 0 mv1 mv2 to_return
-  where
-    len_v1 = U.length v1 
-    len_v2 = U.length v2 
-    fin_len = len_v1 + len_v2 
-    {-# INLINE go #-}
-    go i j k vec1 vec2 to_return 
-                    | (i < len_v1 && j < len_v2) = do 
-                                    e1 <- V.read vec1 i 
-                                    e2 <- V.read vec2 j 
-                                    if e1 <= e2 
-                                      then do 
-                                        V.write to_return k e1 
-                                        go (i + 1) j (k + 1) vec1 vec2 to_return
-                                      else do 
-                                        V.write to_return k e2 
-                                        go i (j + 1) (k + 1) vec1 vec2 to_return
-                    | i < len_v1 = do 
-                      e <- V.read vec1 i 
-                      V.write to_return k e 
-                      go (i + 1) j (k + 1) vec1 vec2 to_return
-                    | j < len_v2 = do 
-                      e <- V.read vec2 j 
-                      V.write to_return k e 
-                      go i (j + 1) (k + 1) vec1 vec2 to_return
-                    | otherwise = do 
-                      v_to_return <- U.unsafeFreeze to_return
-                      return v_to_return
-
-
-{-# INLINE splitVec #-}
-splitVec :: U.Unbox a => Int -> U.Vector a -> [U.Vector a]
-splitVec = splitVecG
-
-
-{-# INLINE splitVecG #-}
-splitVecG :: G.Vector v a  => Int -> v a -> [v a]
-splitVecG !n !v | n == v_length     = [v]
-                | otherwise = if null rem_list then map (\start -> G.slice start slice_sz v) s_list 
-                              else (map (\start -> G.slice start slice_sz v) s_list) ++ rem_list
-            where
-              !v_length = G.length v 
-              (!slice_sz, !rem) = v_length `divMod` n 
-              !s_list   = 0 : (map (*slice_sz) [1..(n - 1)])
-              !rem_list = [G.slice ((v_length - rem)) rem v] 
-			
-
------------------------------------------------------------------------------------------------------------
----------------------------------- Sparse data core -------------------------------------------------------
------------------------------------------------------------------------------------------------------------
-
-
-
-data Nat = Z | S Nat 
-
-fromNat :: Nat -> Int 
-fromNat Z = 0 
-fromNat (S n) = 1 + fromNat n 
-
-
-toNat :: Int -> Nat 
-toNat 0 = Z 
-toNat n = S (toNat (n - 1))
-
-
-
---------------------------------------------------------------------------------------------------------------
-class Sparse rep a where 
+class U.Unbox a => Sparse rep a where 
   data SparseData rep a :: * 
-  smap                  :: (U.Unbox a, U.Unbox b, NFData a, NFData b, Ord b) => (a -> b) -> SparseData rep a -> SparseData rep b  
-  szipWith              :: (U.Unbox a, U.Unbox b, U.Unbox c, Num a, Num b, Num c, Eq c) => (a -> b -> c) -> SparseData rep a -> SparseData rep b  -> SparseData rep c  
-  (#.)                  :: (U.Unbox a, Num a) => SparseData rep a  -> U.Vector a ->  U.Vector a 
+  smap                  :: (U.Unbox b, NFData a, NFData b, Ord b) => (a -> b) -> SparseData rep a -> SparseData rep b  
+  szipWith              :: (U.Unbox b, U.Unbox c, Num a, Num b, Num c, Eq c) => (a -> b -> c) -> SparseData rep a -> SparseData rep b  -> SparseData rep c  
+  (#.)                  :: (Num a) => SparseData rep a  -> U.Vector a ->  U.Vector a 
+  dims                  :: (Num a) => SparseData rep a  -> (Int, Int)
+  is_null               :: SparseData rep a -> Bool  
   
 
 
@@ -180,21 +39,21 @@ class Sparse rep a where
 -- the coordinate representation 
 data COO 
 
-instance Sparse COO a where 
+instance U.Unbox a => Sparse COO a where 
   data instance SparseData COO a  = COO { coo_vals :: U.Vector (a, Int, Int), width :: Int, height :: Int}
+
   smap !f !v = let 
                   vec  = coo_vals v 
                   w    = width v 
                   h    = height v   
-               in v { coo_vals = mapParN 1 (\(x, i, j) -> (f x, i, j)) vec, width=w, height=h} 
+               in v { coo_vals = U.map (\(x, i, j) -> (f x, i, j)) vec, width=w, height=h} 
   szipWith !func !v1 !v2 = if not ((h1 == h2) && (w1 == w2))
                            then error "cannot zip matrices of different dimentions" 
                            else 
-                           if U.null vec1 
-                               then COO (U.map (\(t, i, j) -> (func 0 t, i, j)) vec2) w2 h2  
-                               else 
-                               if U.null vec2 
-                                then COO (U.map (\(t, i, j) -> (func t 0, i, j)) vec1) w1 h1   
+                           if and [U.null vec1, U.null vec2] then 
+                                v1{coo_vals = U.empty}
+                           else if or [U.null vec1, U.null vec2] then
+                                error "one vector has non non-zero elements!" 
                                 else COO ((U.map (\(!x, !i, !j) -> app_func func x i j vec2) vec1) U.++ (filterZeros $ U.map (\(y, w, z) -> func_app func y w z vec1) vec2)) w1 h1    
                   where  
                       vec1 = coo_vals v1
@@ -218,93 +77,141 @@ instance Sparse COO a where
   (#.) !mat !vec  = U.imap (\(!i) (!x) -> U.sum $! U.map (\(!a, _, _) -> a*x) $! colums i mat) vec 
                 where
                   colums !i !m = U.filter (\(!a, _, !n) -> n == i) $! coo_vals m 
+  dims mat                    = (width mat, height mat)
+  is_null COO{coo_vals=v}     = U.null v 
+
 
             
 -- -- the compressed sparse row representation
 
 data CSR 
 
-instance Sparse CSR a where 
-  data instance SparseData CSR a = CSR { row_offsets :: U.Vector Int, columns :: U.Vector Int,  csr_vals :: U.Vector a, max_col :: !Int, max_rows :: !Int} 
-  smap f v = let vec = csr_vals v in v {csr_vals = mapParN 1 f vec}
-  szipWith !func !v1@CSR{row_offsets = rows_1, columns = cols_1, csr_vals = vals_1, max_col = m_1, max_rows = r_1} 
-                 !v2@CSR{row_offsets = rows_2, columns = cols_2, csr_vals = vals_2, max_col = m_2, max_rows = r_2} = 
-                    CSR {
-                                                                                                           row_offsets  = U.zipWith max rows_1 rows_2
-                                                                                                          , columns     = cols 
-                                                                                                          , csr_vals    = vals 
-                                                                                                          , max_col     = max_e
-                                                                                                          , max_rows    = max_r
-                                                                                                          }
-                                                                              where 
-                                                                                (cols, vals) = mkVec max_e min_e
-                                                                                max_e  = max m_1 m_2
-                                                                                max_r  = max r_1 r_2
-                                                                                min_e  = min m_1 m_2 
-                                                                                mkVec !len_max !len_min  = unsafePerformIO $ do 
-                                                                                        !ans_cols  <- V.new len_max  
-                                                                                        !ans_vals  <- V.new len_max
-
-                                                                                        !mcols_1 <- U.unsafeThaw cols_1 
-                                                                                        !mcols_2 <- U.unsafeThaw cols_2 
-
-                                                                                        !mvals_1 <- U.unsafeThaw vals_1 
-                                                                                        !mvals_2 <- U.unsafeThaw vals_2
-
-
-                                                                                        forM_ [0..len_min - 1] $ \i -> do 
-                                                                                          !x <- V.read mcols_1 i
-                                                                                          !y <- V.read mcols_2 i  
-
-                                                                                          !a <- V.read mvals_1 i 
-                                                                                          !b <- V.read mvals_2 i 
-
-                                                                                          if x < y then do 
-                                                                                                V.write ans_cols i x          -- write a 
-                                                                                                V.write ans_cols (i + 1) y    -- write b 
-
-                                                                                                V.write ans_vals i (func a 0) 
-                                                                                                V.write ans_vals (i + i) (func 0 b)
-                                                                                          else if x > y then do 
-                                                                                                V.write ans_cols (i + 1) x    -- write b 
-                                                                                                V.write ans_cols i y          -- write a 
-
-                                                                                                V.write ans_vals (i + 1) (func a 0) 
-                                                                                                V.write ans_vals i (func 0 b)
-                                                                                          else do 
-                                                                                                V.write ans_cols i x     -- need to apply func on both a and b
-                                                                                                V.write ans_vals i (func a b)
-                                                                                        if len_min == m_1 then do 
-                                                                                          forM_ [len_min..len_max - 1] $ \i -> do 
-                                                                                            !y <- V.read mcols_2 i 
-                                                                                            V.write ans_cols i y 
-
-                                                                                            !b <- V.read mvals_2 i 
-                                                                                            V.write ans_vals i (func 0 b) 
-                                                                                        else do 
-                                                                                          forM_ [len_min..len_max - 1] $ \i -> do 
-                                                                                            !x <- V.read mcols_1 i 
-                                                                                            V.write ans_cols i x 
-
-                                                                                            !a <- V.read mvals_1 i 
-                                                                                            V.write ans_vals i (func a 0) 
-
-                                                                                        U.unsafeFreeze mcols_1
-                                                                                        U.unsafeFreeze mcols_2 
-
-                                                                                        U.unsafeFreeze mvals_1 
-                                                                                        U.unsafeFreeze mvals_2 
-
-                                                                                        !vans_cols <- U.unsafeFreeze ans_cols 
-                                                                                        !vans_vals <- U.unsafeFreeze ans_vals
-                                                                                        return (vans_cols, vans_vals)   
+instance U.Unbox a => Sparse CSR a where 
+  data instance SparseData CSR a = CSR { row_offsets :: U.Vector Int
+                                       ,  col_index_csr :: U.Vector Int
+                                       ,  csr_vals :: U.Vector a
+                                       ,  csr_height :: !Int
+                                       ,  csr_width :: !Int
+                                       } 
+  smap f v = let vec = csr_vals v in v {csr_vals = U.map f vec}
+  szipWith !func !v1 !v2 = undefined   
                                                                                                 
-  (#.) !mat@CSR{row_offsets = rows, columns = cols, csr_vals = vals, max_col = _} !vec = U.imap (\i x -> dot_p i cols (find_row i x vals) vec) $ U.init rows
-                                                                              where
-                                                                                dot_p i cols !v1 !v2 = U.sum $ U.imap (\j e -> if (cols U.! i) == j then e * (v1 U.! i) else 0) v2 
-                                                                                find_row index elem values = U.slice index ((rows U.! (index + 1)) - elem) vals 
+  (#.) !mat@CSR{ row_offsets=row_off
+               , col_index_csr=col
+               , csr_vals=val
+               } 
+               !vec 
+              = if U.null val then error "trying to multiply with empty matrix" 
+                else U.imap (\i _ -> U.sum $ mult_val_vec i) (U.replicate (U.length vec) n_val) 
+        where 
+            n_val = U.head val * 0     -- only so the type checker is happy
+            get_vals_from_offsets i  = let ri = row_off U.! i in U.slice ri (row_off U.! (i + 1) - ri) val  
+            get_cols_from_offsets = \i -> let ri = row_off U.! i in U.slice ri (row_off U.! (i + 1) - ri) col  
+            mult_val_vec i = U.zipWith (\v c -> v * vec U.! c) (get_vals_from_offsets i) (get_cols_from_offsets i)
+  dims mat = (csr_width mat, csr_height mat)
+  is_null CSR{csr_vals=v} = U.null v 
 
 
+
+
+--- The ELL format 
+
+data ELL 
+
+instance U.Unbox a => Sparse ELL a where 
+    data instance SparseData ELL a = ELL { max_elem_row :: !Int, col_index_ell :: U.Vector Int, ell_vals :: U.Vector a, ell_height :: !Int, ell_width :: !Int}
+    smap f v            = let val_vec = ell_vals v in v {ell_vals = mapParN 1 f val_vec}
+    szipWith func v1@ELL{max_elem_row=mr1
+                       , ell_vals=vals1 
+                       , ell_height=height1
+                       , col_index_ell=col_index1} 
+                       v2@ELL{
+                           max_elem_row=mr2 
+                        ,  ell_vals=vals2 
+                        ,  ell_height=height2
+                        , col_index_ell=col_index2} = ELL max_mr c_index (vals_answer bigger smaller max_mr min_mr) height1 height1
+                            where 
+                                max_mr = max mr1 mr2 
+                                min_mr = min mr1 mr2 
+                                c_index = if max_mr == mr1 then col_index1 else col_index2
+                                vals_answer b s mb ms = case (b, s) of 
+                                    (Left bigger, Right smaller) -> U.imap (\i x -> case (smaller U.!? (other_index i mb ms)) of 
+                                        Just y -> func x y
+                                        Nothing -> func x 0) bigger
+                                    (Right bigger, Left smaller) -> U.imap (\i x -> case (smaller U.!? (other_index i mb ms)) of 
+                                        Just y -> func y x 
+                                        Nothing -> func 0 x) bigger  
+                                (bigger, smaller) = if mr1 > mr2 then (Left vals1, Right vals2) else (Right vals2, Left vals1)  
+                                other_index i mr other_mr = let (row, col) = i `divMod` mr in row * other_mr + col 
+    (#.) mat@ELL{max_elem_row=mr
+                     , ell_vals=vals
+                     , ell_height=height
+                     , col_index_ell=col_index
+                       } vec        = if U.null vec 
+                                          then U.empty 
+                                          else 
+                                            U.ifoldr (\i (prod, row) to_return -> update_if_row i prod row to_return) 
+                                             (U.replicate (U.length vec) 0) 
+                                             $ U.izipWith col_mult col_index vals 
+                where
+                    col_mult i col val = let 
+                                            x_val = vec U.! col 
+                                            row   = i `mod` mr 
+                                         in (x_val * val, row) 
+                    update_if_row  i p r vec = if i == r
+                                                then 
+                                                   let 
+                                                     curr_val = vec U.! i 
+                                                   in vec U.// [(i, curr_val + p)]
+                                                else vec
+    dims mat = (ell_width mat, ell_height mat)
+    is_null ELL{ell_vals=v} = U.null v 
+
+
+countFreqs' :: U.Vector Int  -> M.Map Int Int  
+countFreqs' v = U.foldr (\elem dict -> case M.lookup elem dict of 
+                              Nothing -> M.insert elem 1 dict 
+                              Just n  -> M.insert elem (n + 1) dict) M.empty v   
+
+countFreqs'' :: U.Vector Int -> U.Vector Int -> U.Vector Int 
+countFreqs'' vec helper = let m = M.toList $ countFreqs' vec in helper U.// m  
+
+countFreqs ::  Int -> U.Vector Int -> U.Vector Int 
+countFreqs len vec = countFreqs'' vec (U.replicate len 0)
+
+                          
+
+---- conversions
+coo_to_csr :: U.Unbox a => SparseData COO a -> SparseData CSR a 
+coo_to_csr COO{coo_vals=vec, width=w, height=h} = CSR {csr_height=h
+                                                         , csr_width=w
+                                                         , row_offsets=row_offs 
+                                                         , col_index_csr=col_index 
+                                                         , csr_vals=vals}
+                                    where
+                                        (vals, rows, col_index) = U.unzip3 vec 
+                                        row_offs = if U.null vals then U.singleton 0 else U.prescanl (+) 0 $ countFreqs (h + 1) rows 
+
+
+
+
+
+csr_to_coo :: U.Unbox a => SparseData CSR a -> SparseData COO a 
+csr_to_coo CSR{csr_height=h, csr_width=w
+            , row_offsets=row_offs, col_index_csr=col_index
+            , csr_vals=vals} = COO{coo_vals=vec, width=w, height=h} 
+            where
+                vec = U.zip3 vals (fromOffsets row_offs) col_index 
+                fromOffsets l = U.concatMap (\(i, j) -> if j /= 0 then U.replicate j (j - 1) else U.empty) $ U.zip l ((U.tail l) U.++ (U.fromList [0]))
+
+-- coo_to_ell :: U.Unbox a => SparseData COO a -> SparseData ELL a 
+-- coo_to_ell m@COO{coo_vals=vals, width=w, height=h} = let (e_vals, e_cols) = vals_to_ell vals in ELL my_mr e_cols e_vals h w 
+--                                          where
+--                                             (vs, rs, cs) = U.unzip3 vals  
+
+
+-- ell_to_coo :: U.Unbox a => SparseData ELL a -> SparseData COO a 
+-- ell_to_coo = undefined
       
 -- ----------------------------------------------------------------------------------------------------------------------------
 -- ------------------------------------- Generic operations & algorithms (any representation) ---------------------------------
@@ -322,11 +229,11 @@ scale x = smap (*x)
 (#-) = szipWith (-)
 
 
+------------------------ Generic Iterative linear solvers --------------------------------------------------------------------------
 
-
-cg :: (Num a, Sparse rep a, U.Unbox a, Eq a, Floating a) => Int -> Int -> U.Vector a -> SparseData rep a ->  U.Vector a -> (a, U.Vector a)
+cg :: (Num a, Sparse rep a, U.Unbox a, Eq a, Floating a) => Int -> U.Vector a -> SparseData rep a ->  U.Vector a -> (a, U.Vector a)
 {-# INLINE cg #-}
-cg !size !iters !z !a !x = 
+cg !iters !z !a !x = 
     let 
         !r     = x 
         !p     = r  
@@ -353,6 +260,9 @@ cg !size !iters !z !a !x =
         (^+^)         = U.zipWith (+)
         (^-^)         = U.zipWith (-)  
         (.*) c        = U.map (*c)  
+
+
+---------------------------------------------------------------------------------------------------------------------------------------
 
 
 
