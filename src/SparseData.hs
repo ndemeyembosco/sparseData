@@ -1,28 +1,8 @@
-{-# LANGUAGE TypeFamilies, TypeOperators #-}
-{-# LANGUAGE GADTs, MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns, DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
-{-# LANGUAGE DataKinds #-}
-
+{-# LANGUAGE TypeFamilies, MultiParamTypeClasses, FlexibleInstances, BangPatterns #-}
 
 module SparseData where 
-
-import qualified Data.Vector.Mutable as VB 
 import qualified Data.Vector as VU 
-import qualified Data.Vector.Unboxed as U 
-import qualified Data.Vector.Unboxed.Mutable as V
-import qualified Data.Vector.Generic as G 
-import qualified Control.Monad.Par as P 
--- import qualified Control.Monad.Par.IO as P (ParIO, runParIO, IVar)
-import Control.Monad.Par.Class  
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Monad.Primitive
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad 
-import Control.Monad.ST (runST)
-import Patterns (parDivConqGenV, parDivConqZipsGenV)
-import qualified Data.Map as M  
+import qualified Data.Vector.Unboxed as U  
 import Control.Monad 
 import Data.Maybe (maybe)
 
@@ -51,7 +31,6 @@ szipWith_i f (g, len) (h, len1) = if len /= len1 then error "length mismatch!" e
 
 sum_i :: (U.Unbox a, Num a) => SVector a -> a 
 sum_i (f, len) = VU.foldr (\i n ->  n + (f i)) 0 $ VU.enumFromN 0 (len - 1) 
-
 
 
 class U.Unbox e => Sparse r ty e where 
