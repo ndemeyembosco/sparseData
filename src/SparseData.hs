@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeFamilies, MultiParamTypeClasses, FlexibleInstances, BangPatterns #-}
+{-# LANGUAGE TypeFamilies, MultiParamTypeClasses
+           , FlexibleInstances, BangPatterns, RankNTypes #-}
 
 module SparseData where 
 import qualified Data.Vector as VU 
@@ -33,12 +34,29 @@ sum_i :: (U.Unbox a, Num a) => SVector a -> a
 sum_i (f, len) = VU.foldr (\i n ->  n + (f i)) 0 $ VU.enumFromN 0 (len - 1) 
 
 
-class U.Unbox e => Sparse r ty e where 
+class (U.Unbox e, Num e) => Sparse r ty e where 
     data SparseData r ty e :: * 
     s_index   :: SparseData r ty e -> (Int, Int) -> Maybe e 
     s_height  :: SparseData r ty e -> Int 
     s_width   :: SparseData r ty e -> Int 
+    -- By default matVec 
     (#.)      :: SparseData r ty e -> SVector e -> SVector e 
+    (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
+    -- Default sparse to coo transformation to ease testing
+    s_to_coo  :: SparseData r ty e -> SparseData COO U e 
+    s_to_coo  = s_undelay . delay 
+
+
+
+instance (Eq e, Sparse r ty e) => Eq (SparseData r ty e) where 
+    arr1 == arr2 = and_v (vals_vec mat)    
+           where 
+            and_v  l     = let parts = U.foldr (+) 1 l in U.length l == parts 
+            darr1        = delay arr1 
+            darr2        = delay arr2
+            mat          = s_undelay $ zipWith_s (\x y -> if x == y then 1 else 0) darr1 darr2
+            vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
+ 
 
 
 
@@ -55,9 +73,26 @@ instance (U.Unbox e, Num e) => Sparse r D e where
                                  row_func r1 c1   = maybe 0 id $ func (r1, c1)  -- turn Nothings into zeros 
                                  r_funcs          = VU.map (\ri -> (row_func ri, w)) $ VU.enumFromN 0 (h - 1)  
                                  part_sums        = VU.map (\(g, w) -> sum_i $ szipWith_i (*) (g, w) v) r_funcs
+    s_to_coo = s_undelay 
 
-delay :: Sparse r ty e => SparseData r ty e -> SparseData r D e 
+
+delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
 delay arr = SDelayed (s_height arr, s_width arr) (s_index arr)
+
+
+-- will there actually be any zeros in this?
+-- As in if the Nothing is there just to catch 
+-- indexing errors then, I don't actually think 
+-- any zeros will be produced in this.
+s_undelay :: (Num e, U.Unbox e) => SparseData r D e -> SparseData COO U e 
+s_undelay (SDelayed (h, w) func) = COO vals w h 
+        where 
+            vals = U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe 0 id $ func (r1, c1), r1, c1))
+
+
+-- to_coo 
+-- s_to_coo :: (Sparse r ty e, U.Unbox e, Num e) => SparseData r ty e -> SparseData COO U e 
+-- s_to_coo = s_undelay . delay 
 
 
 map_s :: Sparse r ty e => (e -> b) -> SparseData r ty e -> SparseData r D b 
@@ -73,6 +108,11 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
                         SDelayed (w2, h2) f2 = delay arr2
                         get val = f <$> (f1 val) <*> (f2 val)
                         (w, h)  = if and [w1 == w2, h1 == h2] then (w1, h1) else error "zipWith dimension mismatch!"
+
+-- sparse_equals :: (Sparse r ty a, Eq a) => SparseData r ty a -> SparseData r ty a -> Bool 
+-- sparse_equals arr1 arr2 = and_s $ zipWith_s (==) arr1 arr2
+--                      where 
+--                         and_s (SDelayed _ f) = ((flip const) f) == (Just True)
 
 
 (#+) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a
@@ -96,7 +136,7 @@ instance (U.Unbox e, Num e) => Sparse COO U e where
                         els = U.filter (\(a, x, y) -> and [x == r, y == c]) vals
     s_height (COO vals _ h) = h 
     s_width (COO vals w _)  = w 
-    (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec 
+    s_to_coo                = id 
 
 
 
@@ -114,9 +154,10 @@ instance (U.Unbox e, Num e) => Sparse CSR U e where
                                    to_start = row_offs U.! (r - 1)
                                    vec      = U.slice to_start (to_slice - to_start) $ U.zip col_index vals 
                                    els      = U.filter (\(x, _) -> x == c) vec
-    s_height (CSR _ _ _ h _) = h 
+    s_height (CSR _ _ _ h _)  = h 
     s_width  (CSR _ _ _ _ w)  = w 
-    (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec 
+    
+
 
 
 instance (U.Unbox e, Num e) => Sparse ELL U e where 
@@ -134,7 +175,6 @@ instance (U.Unbox e, Num e) => Sparse ELL U e where
                                           els      = U.filter (\(x,_) -> x == c) vec  
     s_height (ELL _ _ _ h _) = h 
     s_width  (ELL _ _ _ _ w) = w 
-    (#.) !mat !vec = let delayed_mat = delay mat in delayed_mat #. vec 
 
 
 -- ------------------------ Generic Iterative linear solvers --------------------------------------------------------------------------
