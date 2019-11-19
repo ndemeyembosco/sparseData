@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, MultiParamTypeClasses
-           , FlexibleInstances, BangPatterns, RankNTypes #-}
+           , FlexibleInstances, BangPatterns, RankNTypes 
+           , FlexibleContexts #-}
 
 module SparseData where 
 import qualified Data.Vector as VU 
@@ -21,7 +22,8 @@ to_vector (f, len) = U.generate len f
 from_vector :: U.Unbox a => U.Vector a -> SVector a 
 from_vector vec =  let len = U.length vec in ((U.!) vec, len)
 
-
+null_i :: SVector a -> Bool 
+null_i  = (== 0) . snd 
 
 smap_i :: U.Unbox a => (a -> b) -> SVector a -> SVector b
 smap_i f (g, len) = (f . g, len)
@@ -32,6 +34,9 @@ szipWith_i f (g, len) (h, len1) = if len /= len1 then error "length mismatch!" e
 
 sum_i :: (U.Unbox a, Num a) => SVector a -> a 
 sum_i (f, len) = VU.foldr (\i n ->  n + (f i)) 0 $ VU.enumFromN 0 (len - 1) 
+
+equals_i :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
+equals_i vec1 vec2 = (to_vector vec1) == (to_vector vec2)
 
 
 class (U.Unbox e, Num e) => Sparse r ty e where 
@@ -44,7 +49,7 @@ class (U.Unbox e, Num e) => Sparse r ty e where
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
     -- Default sparse to coo transformation to ease testing
     s_to_coo  :: SparseData r ty e -> SparseData COO U e 
-    s_to_coo  = s_undelay . delay 
+    s_to_coo  = s_undelay . delay  
 
 
 
@@ -58,10 +63,9 @@ instance (Eq e, Sparse r ty e) => Eq (SparseData r ty e) where
             vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
  
 
-
-
-data U 
+ 
 data D 
+----------------- Delayed --------------------------------------
 
 instance (U.Unbox e, Num e) => Sparse r D e where 
     data SparseData r D e = SDelayed (Int, Int) ((Int, Int) -> Maybe e) -- (height, width), indexing function 
@@ -89,11 +93,16 @@ s_undelay (SDelayed (h, w) func) = COO vals w h
         where 
             vals = U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe 0 id $ func (r1, c1), r1, c1))
 
+coo_to_sd :: Sparse r D e => SparseData COO U e -> SparseData r D e 
+coo_to_sd arr = let f = s_index arr in SDelayed (s_height arr, s_width arr) f 
 
--- to_coo 
--- s_to_coo :: (Sparse r ty e, U.Unbox e, Num e) => SparseData r ty e -> SparseData COO U e 
--- s_to_coo = s_undelay . delay 
 
+is_null :: Sparse r ty a => SparseData r ty a -> Bool 
+is_null mat = U.null vals 
+    where 
+        vals = coo_vals $ s_to_coo mat 
+
+-------------- Polymorphic -----------------------------------------------
 
 map_s :: Sparse r ty e => (e -> b) -> SparseData r ty e -> SparseData r D b 
 map_s f arr = case delay arr of 
@@ -109,11 +118,6 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
                         get val = f <$> (f1 val) <*> (f2 val)
                         (w, h)  = if and [w1 == w2, h1 == h2] then (w1, h1) else error "zipWith dimension mismatch!"
 
--- sparse_equals :: (Sparse r ty a, Eq a) => SparseData r ty a -> SparseData r ty a -> Bool 
--- sparse_equals arr1 arr2 = and_s $ zipWith_s (==) arr1 arr2
---                      where 
---                         and_s (SDelayed _ f) = ((flip const) f) == (Just True)
-
 
 (#+) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a
 (#+) = zipWith_s (+)
@@ -122,12 +126,15 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
 (#-) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a 
 (#-) = zipWith_s (-)
 
+scale :: (Sparse r ty a, Num a) => a -> SparseData r ty a -> SparseData r D a 
+scale n = map_s (* n)
+
+
+data U
+--------------- Unboxed --------------------
 
 data COO 
-data CSR 
-data ELL 
-
-
+--------------- COO ------------------------
 instance (U.Unbox e, Num e) => Sparse COO U e where 
     data instance SparseData COO U e   = COO { coo_vals :: U.Vector (e, Int, Int), width :: Int, height :: Int}
     -- indexing is big o length of non zeros
@@ -138,8 +145,12 @@ instance (U.Unbox e, Num e) => Sparse COO U e where
     s_width (COO vals w _)  = w 
     s_to_coo                = id 
 
+instance (Show a, U.Unbox a) => Show (SparseData COO U a) where 
+    show vec@COO{coo_vals = my_vec, height=h, width=w} = unwords [show my_vec, "(", show h, ",", show w, ")"]
 
 
+data CSR   
+--------------- CSR -------------------------
 instance (U.Unbox e, Num e) => Sparse CSR U e where 
     data instance SparseData CSR U e = CSR { row_offsets     :: U.Vector Int
                                        ,  col_index_csr :: U.Vector Int
@@ -157,9 +168,21 @@ instance (U.Unbox e, Num e) => Sparse CSR U e where
     s_height (CSR _ _ _ h _)  = h 
     s_width  (CSR _ _ _ _ w)  = w 
     
+instance (Show a, U.Unbox a) => Show (SparseData CSR U a) where 
+    show !v1@CSR{row_offsets=row_off1, 
+                        col_index_csr=col1 
+                        , csr_vals=vals1 
+                        , csr_height=h1
+                        , csr_width=w1}  = unlines [ 
+                                                "(" ++ show h1 ++ "," ++ show w1 ++ ")"
+                                               , "values: " ++ show vals1 
+                                               , "column index: " ++ show col1
+                                               , "row offsets: " ++ show row_off1
+                                            ]
 
 
-
+data ELL 
+----------------- ELL -------------------
 instance (U.Unbox e, Num e) => Sparse ELL U e where 
     data instance SparseData ELL U e = ELL { max_elem_row    :: !Int
                                         , col_index_ell :: U.Vector Int
@@ -177,7 +200,22 @@ instance (U.Unbox e, Num e) => Sparse ELL U e where
     s_width  (ELL _ _ _ _ w) = w 
 
 
--- ------------------------ Generic Iterative linear solvers --------------------------------------------------------------------------
+
+instance (Show a, U.Unbox a) => Show (SparseData ELL U a) where
+    show m@ELL{
+                max_elem_row = mr 
+              , ell_vals     = vals 
+              , ell_height   = height 
+              , col_index_ell = col_index 
+              } = unlines [
+                  "(" ++ show height ++ "," ++ show height ++ ")"
+                , "max elem per row: " ++ show mr 
+                , "values : " ++ show vals 
+                , "col indices : " ++ show col_index
+              ]
+
+
+--------------------------- Generic Iterative linear solvers --------------------------------------------------------------------------
 
 cg :: (Num a, Sparse rep ty a, U.Unbox a, Eq a, Floating a) => Int -> SVector a -> SparseData rep ty a ->  SVector a -> (a, SVector a)
 {-# INLINE cg #-}

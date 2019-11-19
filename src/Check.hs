@@ -1,5 +1,6 @@
 {-# LANGUAGE  TypeOperators, FlexibleInstances, BangPatterns, FlexibleContexts 
-, ScopedTypeVariables, GADTs, RankNTypes, AllowAmbiguousTypes, RecursiveDo #-}
+, ScopedTypeVariables, GADTs, RankNTypes, AllowAmbiguousTypes, RecursiveDo 
+, UndecidableInstances #-}
 
 
 
@@ -9,7 +10,6 @@ import SparseData
 import Test.QuickCheck hiding (scale) 
 import Test.QuickCheck.Property 
 import Test.QuickCheck.Function ((:->))
-import Control.Monad.Par 
 import Data.Monoid 
 
 import qualified Data.Vector.Unboxed as UVector
@@ -29,23 +29,14 @@ arbitraryVector :: (GVector.Vector v a, Arbitrary a, Ord a) => Gen (v a)
 arbitraryVector = fmap (\l -> GVector.fromList $ sort l) arbitrary
 
 
-                        
-
+                      
 shrinkVector :: (GVector.Vector v a, Arbitrary a) => v a -> [v a]
 shrinkVector = fmap GVector.fromList . shrink . GVector.toList
 
--- coarbitraryVector :: (GVector.Vector v a, CoArbitrary a) => v a -> Gen b -> Gen b
--- coarbitraryVector = coarbitrary . GVector.toList
 
--- functionVector :: (GVector.Vector v a, Function a) => (v a -> c) -> v a :-> c
--- functionVector = functionMap GVector.toList GVector.fromList
+-------------------------------------------------- Unboxed ------------------------------------------------
 
-
-----------------------------------------------------------------------------------------------------
-
------------------------------------------------ COO ------------------------------------------------
-
-instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData COO a) where 
+instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData COO U a) where 
     arbitrary = sized $ \n -> do 
         (uvec' :: UVector.Vector a) <- arbitraryVector
         let 
@@ -62,133 +53,15 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (Sparse
                                     !z = widths UVector.! i 
                                  return (x, y, z)) uvec 
         return $ (COO to_return n n)
+---------------------------------------------------- Delayed --------------------------------------------------------
 
-instance (Show a, UVector.Unbox a) => Show (SparseData COO a) where 
-    show vec@COO{coo_vals = my_vec, height=h, width=w} = unwords [show my_vec, "(", show h, ",", show w, ")"]
-
-
--- instance CoArbitrary a => CoArbitrary (SparseData COO a) where 
---     coarbitrary = coarbitrarySparseData
-
--- instance Function a => Function (SparseData COO a) where 
---     function = functionSparseData 
-
-
-instance (Eq a, Ord a, UVector.Unbox a) => Eq (SparseData COO a) where 
-    (==) !v1 !v2 = let
-                        sv1 = S.fromList $ UVector.toList $ coo_vals v1 
-                        sv2 = S.fromList $ UVector.toList $ coo_vals v2
-                   in (sv1 == sv2) && (height v1 == height v2) && (width v1 == width v2)
-
-  
----------------------------------------------------- CSR --------------------------------------------------------
-
-instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData CSR a) where 
-    arbitrary = sized $ \n1 -> do 
-        (coo_source :: SparseData COO a) <- arbitrary
-        return $ coo_to_csr coo_source 
-
-                
-
-instance (Show a, UVector.Unbox a) => Show (SparseData CSR a) where 
-    show !v1@CSR{row_offsets=row_off1, 
-                        col_index_csr=col1 
-                        , csr_vals=vals1 
-                        , csr_height=h1
-                        , csr_width=w1}  = unlines [ 
-                                                "(" ++ show h1 ++ "," ++ show w1 ++ ")"
-                                               , "values: " ++ show vals1 
-                                               , "column index: " ++ show col1
-                                               , "row offsets: " ++ show row_off1
-                                            ]
-                                                                                                --   , show cols
-                                                                                                --   , show vals 
-                                                                                                --   , "(" ++ show width ++ "," ++ show height ++ ")"] 
-
- 
--- instance CoArbitrary a => CoArbitrary (SparseData CSR a) where 
---     coarbitrary = coarbitrarySparseData
-
--- instance Function a => Function (SparseData CSR a) where 
---     function = functionSparseData
-
-instance (Eq a, Ord a, UVector.Unbox a) => Eq (SparseData CSR a) where 
-    (==) !v1@CSR{row_offsets=row_off1, 
-                 col_index_csr=col1 
-                 , csr_vals=vals1 
-                 , csr_height=h1
-                 , csr_width=w1} 
-                 
-                 !v2@CSR{row_offsets=row_off2 
-                        , col_index_csr=col2 
-                        , csr_vals=vals2 
-                        , csr_height=h2 
-                        , csr_width=w2} = and [ row_off1 == row_off2
-                                           , col1 == col2 
-                                           , vals1 == vals2 
-                                           , h1 == h2 
-                                           , w1 == w2]
-
-
---------------------------------------------------- ELL -------------------------------------------------------------
-
-instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData ELL a) where 
+instance (Arbitrary a, UVector.Unbox a, Sparse r D a, Eq a, Ord a) => Arbitrary (SparseData r D a) where 
     arbitrary = do 
-        (height :: Int) <- suchThat arbitrary (>2)  
-        mr <- choose (2, height - 1)
-        let vec_size = height * mr 
-        col_index <- UVector.replicateM (vec_size) (choose (0, height - 1))  -- no two similar indices on the same row
-        vals      <- UVector.replicateM vec_size (suchThat arbitrary (>0))
-        return $ ELL mr col_index vals height height
+        (arr :: SparseData COO U a) <- arbitrary
+        let (interm :: SparseData r D a) = coo_to_sd arr 
+        return interm  
 
-instance (Show a, UVector.Unbox a) => Show (SparseData ELL a) where
-    show m@ELL{
-                max_elem_row = mr 
-              , ell_vals     = vals 
-              , ell_height   = height 
-              , col_index_ell = col_index 
-              } = unlines [
-                  "(" ++ show height ++ "," ++ show height ++ ")"
-                , "max elem per row: " ++ show mr 
-                , "values : " ++ show vals 
-                , "col indices : " ++ show col_index
-              ]
-
--- instance CoArbitrary a => CoArbitrary (SparseData ELL a) where 
---     coarbitrary = coarbitrarySparseData
-
--- instance Function a => Function (SparseData ELL a) where 
---     function = functionSparseData
-
-instance (Eq a, Ord a, UVector.Unbox a) => Eq (SparseData ELL a) where
-    (==) (ELL mr1 ind1 vals1 h1 w1) 
-         (ELL mr2 ind2 vals2 h2 w2) 
-                                   = and 
-                                     [mr1 == mr2 
-                                     , ind1 == ind2 
-                                     , vals1 == vals2 
-                                     , h1 == h2 
-                                     , w1 == w2]
-
-
----------------------------------------------------------------------------------------------------------------------
-
-
----------------------------------------------------------------------------------------------------------------------
-
-
-coarbitrarySparseData :: (Sparse rep a, CoArbitrary a) => SparseData rep a  -> Gen b -> Gen b 
-coarbitrarySparseData = undefined 
-
-
-functionSparseData :: (Sparse rep a, Function a) => (SparseData rep a  -> c) -> SparseData rep a  :-> c 
-functionSparseData = undefined
-
-
--- seeA :: (Show a, Arbitrary a, UVector.Unbox a) => Gen (SparseData COO a) 
--- seeA = arbitrary 
-
-
+       
 -- ---------------------------------------------------------------------------------------------------------------
 -- --------------------------------- Properties ------------------------------------------------------------------
 -- ---------------------------------------------------------------------------------------------------------------
@@ -197,12 +70,12 @@ functionSparseData = undefined
 -- -- generate another sparse matrix with same length as above
 -- -- generate a third
 -- -- check if (A + B) + C == A + (B + C) 
-s_assoc_add_prop ::  (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a)) => SparseData rep a  -> SparseData rep a  -> SparseData rep a  -> Bool 
+s_assoc_add_prop ::  (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => SparseData rep D a  -> SparseData rep D a  -> SparseData rep D a  -> Bool 
 s_assoc_add_prop a_mat b_mat c_mat = 
     let 
-        (a_w, a_h) = dims a_mat
-        (b_w, b_h) = dims b_mat
-        (c_w, c_h) = dims c_mat 
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+        (c_w, c_h) = (s_width c_mat, s_height c_mat) 
     in if not $ and [a_w == b_w, a_w == c_w, a_h == b_h, a_h == c_h] then True
     else 
         if (a_mat #+ b_mat) #+ c_mat == a_mat #+ (b_mat #+ c_mat) 
@@ -214,11 +87,11 @@ s_assoc_add_prop a_mat b_mat c_mat =
 -- -- generate random sparse matrix of given size
 -- -- generate second sparse matrix of same size
 -- -- check if (A + B) == (B + A)
-s_commut_add_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a)) => SparseData rep a  -> SparseData rep a  -> Bool  
+s_commut_add_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => SparseData rep D a  -> SparseData rep D a  -> Bool  
 s_commut_add_prop a_mat b_mat = 
     let 
-        (a_w, a_h) = dims a_mat
-        (b_w, b_h) = dims b_mat
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
     in if or [a_w /= b_w, a_h /= b_h, is_null a_mat, is_null b_mat] then True 
     else  
         if (a_mat #+ b_mat) == (b_mat #+ a_mat)
@@ -228,7 +101,7 @@ s_commut_add_prop a_mat b_mat =
 -- -- generate random sparse matrix of given size 
 -- -- generate 2 random scalars (integers) r and s
 -- -- check whether r (s A) = (r s) A 
-s_assoc_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a), NFData a) => a -> a -> SparseData rep a -> Bool  
+s_assoc_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> a -> SparseData rep D a -> Bool  
 s_assoc_const_mul_prop r s a_mat = 
     if (r `scale` (s `scale` a_mat)) == ((r * s) `scale` a_mat)
         then True 
@@ -238,11 +111,11 @@ s_assoc_const_mul_prop r s a_mat =
 -- -- generate random scalar r 
 -- -- generate random sparse matrices A and B 
 -- -- check whether r (A + B) = r A + r B 
-s_distr_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a), NFData a) => a -> SparseData rep a  -> SparseData rep a  -> Bool  
+s_distr_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> SparseData rep D a  -> SparseData rep D a  -> Bool  
 s_distr_const_mul_prop r a_mat b_mat = 
     let 
-        (a_w, a_h) = dims a_mat
-        (b_w, b_h) = dims b_mat
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
     in if a_w /= b_w || a_h /= b_h then True 
     else 
         if r `scale` (a_mat #+ b_mat) == (r `scale` a_mat) #+ (r `scale` b_mat)
@@ -254,44 +127,39 @@ s_distr_const_mul_prop r a_mat b_mat =
 -- -- generate random sparse matrix A 
 -- -- generate random vectors w and v 
 -- -- check whether A (w + v) = A w + A v 
-s_assoc_mult_vec_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a)) => UVector.Vector a -> UVector.Vector a -> SparseData rep a -> Bool  
-s_assoc_mult_vec_prop  w_vec v_vec a_mat = 
-        if or [len_w /= len_v, len_w /= w, UVector.null w_vec || UVector.null v_vec, is_null a_mat] then True 
-        else a_mat #. (w_vec ^+^ v_vec) == (a_mat #. w_vec) ^+^ (a_mat #. v_vec)
+s_assoc_mult_vec_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => UVector.Vector a -> UVector.Vector a -> SparseData rep D a -> Bool  
+s_assoc_mult_vec_prop  w_vec' v_vec' a_mat = 
+        if or [len_w /= len_v, len_w /= w, null_i w_vec || null_i v_vec, is_null a_mat] then True 
+        else (a_mat #. (w_vec ^+^ v_vec)) `equals_i` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
     where   
-        (^+^)  = UVector.zipWith (+)
-        (w, h) = dims a_mat
-        len_w  = UVector.length w_vec 
-        len_v  = UVector.length v_vec 
+        w_vec  = from_vector w_vec'
+        v_vec  = from_vector v_vec'
+        (^+^)  = szipWith_i (+)
+        (w, h) = (s_width a_mat, s_height a_mat)
+        len_w  = snd w_vec 
+        len_v  = snd v_vec 
 
 
 -- -- generate random sparse matrices A and B 
 -- -- generate random vector v 
 -- -- check whether (A + B) v = A v + B v 
-s_distr_add_mult_vec_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep a, Num a, Eq (SparseData rep a)) => UVector.Vector a -> SparseData rep a  -> SparseData rep a  -> Bool  
-s_distr_add_mult_vec_prop v_vec a_mat b_mat = 
+s_distr_add_mult_vec_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => UVector.Vector a -> SparseData rep D a  -> SparseData rep D a  -> Bool  
+s_distr_add_mult_vec_prop v_vec' a_mat b_mat = 
     let 
-        (a_w, a_h) = dims a_mat
-        (b_w, b_h) = dims b_mat
-        len        = UVector.length v_vec
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+        len        = snd v_vec
     in if or [a_w /= b_w, a_h /= b_h, a_w /= len] then True
     else 
-        if (a_mat #+ b_mat) #. v_vec == (a_mat #. v_vec) `addVecs` (b_mat #. v_vec)
+        if ((a_mat #+ b_mat) #. v_vec) `equals_i` ((a_mat #. v_vec) `addVecs` (b_mat #. v_vec))
             then True 
             else False 
     where 
-        addVecs !v1 !v2 = UVector.zipWith (+) v1 v2 
+        addVecs !v1 !v2 = szipWith_i (+) v1 v2 
+        v_vec = from_vector v_vec'
 
 
 
--- testing conversions!
-coo_csr_id_prop :: (UVector.Unbox a, Eq a, Ord a, Num a) => SparseData COO a -> SparseData CSR a -> Bool 
-coo_csr_id_prop coo_mat csr_mat = 
-    let 
-        (coo_w, coo_h) = dims coo_mat 
-        (csr_w, csr_h) = dims csr_mat 
-    in if or [coo_w /= csr_w, coo_h /= csr_h, (csr_vals csr_mat == UVector.empty) || (coo_vals coo_mat == UVector.empty)] then True 
-    else and [((csr_to_coo $ coo_to_csr coo_mat) == coo_mat), ((coo_to_csr $ csr_to_coo csr_mat) == csr_mat)] 
 
 
 
