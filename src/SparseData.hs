@@ -48,18 +48,18 @@ class (U.Unbox e, Num e) => Sparse r ty e where
     (#.)      :: SparseData r ty e -> SVector e -> SVector e 
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
     -- Default sparse to coo transformation to ease testing
-    s_to_coo  :: SparseData r ty e -> SparseData COO U e 
-    s_to_coo  = s_undelay . delay  
+    s_to_coo  :: Num e => SparseData r ty e -> SparseData COO U e 
+    s_to_coo  = (s_undelay 0) . delay  
 
 
 
 instance (Eq e, Sparse r ty e) => Eq (SparseData r ty e) where 
     arr1 == arr2 = and_v (vals_vec mat)    
            where 
-            and_v  l     = let parts = U.foldr (+) 1 l in U.length l == parts 
+            and_v  l     = U.foldr (&&) True l  
             darr1        = delay arr1 
             darr2        = delay arr2
-            mat          = s_undelay $ zipWith_s (\x y -> if x == y then 1 else 0) darr1 darr2
+            mat          = s_undelay True $ zipWith_s (==) darr1 darr2
             vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
  
 
@@ -77,7 +77,10 @@ instance (U.Unbox e, Num e) => Sparse r D e where
                                  row_func r1 c1   = maybe 0 id $ func (r1, c1)  -- turn Nothings into zeros 
                                  r_funcs          = VU.map (\ri -> (row_func ri, w)) $ VU.enumFromN 0 (h - 1)  
                                  part_sums        = VU.map (\(g, w) -> sum_i $ szipWith_i (*) (g, w) v) r_funcs
-    s_to_coo = s_undelay 
+    s_to_coo = s_undelay 0
+
+instance Sparse r D e => Show (SparseData r D e) where 
+    show _ = "<delayed function>"
 
 
 delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
@@ -88,10 +91,10 @@ delay arr = SDelayed (s_height arr, s_width arr) (s_index arr)
 -- As in if the Nothing is there just to catch 
 -- indexing errors then, I don't actually think 
 -- any zeros will be produced in this.
-s_undelay :: (Num e, U.Unbox e) => SparseData r D e -> SparseData COO U e 
-s_undelay (SDelayed (h, w) func) = COO vals w h 
+s_undelay :: (U.Unbox e) => e -> SparseData r D e -> SparseData COO U e 
+s_undelay e (SDelayed (h, w) func) = COO vals w h 
         where 
-            vals = U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe 0 id $ func (r1, c1), r1, c1))
+            vals = U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe e id $ func (r1, c1), r1, c1))
 
 coo_to_sd :: Sparse r D e => SparseData COO U e -> SparseData r D e 
 coo_to_sd arr = let f = s_index arr in SDelayed (s_height arr, s_width arr) f 
@@ -145,6 +148,7 @@ instance (U.Unbox e, Num e) => Sparse COO U e where
     s_width (COO vals w _)  = w 
     s_to_coo                = id 
 
+    
 instance (Show a, U.Unbox a) => Show (SparseData COO U a) where 
     show vec@COO{coo_vals = my_vec, height=h, width=w} = unwords [show my_vec, "(", show h, ",", show w, ")"]
 

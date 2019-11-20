@@ -9,24 +9,20 @@ module Check where
 import SparseData 
 import Test.QuickCheck hiding (scale) 
 import Test.QuickCheck.Property 
-import Test.QuickCheck.Function ((:->))
-import Data.Monoid 
-
 import qualified Data.Vector.Unboxed as UVector
-import qualified Data.Vector as BVector 
 import qualified Data.Vector.Generic as GVector
 import qualified Data.Set as S 
 import Data.List 
 import Control.Monad 
 
 
-instance (UVector.Unbox a, Arbitrary a, Ord a) => Arbitrary (UVector.Vector a) where
+instance (UVector.Unbox a, Arbitrary a, Ord a, Num a) => Arbitrary (UVector.Vector a) where
     arbitrary = arbitraryVector
     shrink = shrinkVector
 
 
-arbitraryVector :: (GVector.Vector v a, Arbitrary a, Ord a) => Gen (v a)
-arbitraryVector = fmap (\l -> GVector.fromList $ sort l) arbitrary
+arbitraryVector :: (GVector.Vector v a, Arbitrary a, Ord a, Num a) => Gen (v a)
+arbitraryVector = fmap (\l -> GVector.fromList $ sort (filter (>0) l)) arbitrary
 
 
                       
@@ -37,21 +33,27 @@ shrinkVector = fmap GVector.fromList . shrink . GVector.toList
 -------------------------------------------------- Unboxed ------------------------------------------------
 
 instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData COO U a) where 
-    arbitrary = sized $ \n -> do 
-        (uvec' :: UVector.Vector a) <- arbitraryVector
+    arbitrary = sized $ \n -> do  
+        (len :: Int) <- arbitrary
         let 
-            !uvec       = UVector.filter (/= 0) uvec'
-            !len        = UVector.length uvec 
             !def_height = n 
             !def_width  = n 
         !(heights' :: [Int]) <- replicateM len (choose (0, def_height - 1)) 
         !(widths' :: [Int])  <- replicateM len (choose (0, def_width - 1))
         let (!heights, !widths) = UVector.unzip $ UVector.fromList $ sort $ S.toList $ S.fromList $ zip heights' widths' 
+        (uvec' :: UVector.Vector a) <- arbitraryVector `suchThat` (\v -> UVector.length v == UVector.length widths)
+        let 
+            !uvec       = UVector.filter (/= 0) uvec'
+            !len        = UVector.length uvec
         !to_return <- UVector.imapM (\i x -> do 
                                  let 
-                                    !y = heights UVector.! i 
-                                    !z = widths UVector.! i 
-                                 return (x, y, z)) uvec 
+                                    y1 = heights UVector.!? i 
+                                    z1 = widths UVector.!? i 
+                                 case (y1, z1) of 
+                                    (Just y, Just z)    -> return (x, y, z) 
+                                    (Just _, Nothing)   -> error "out of bounds in widths"
+                                    (Nothing, Just _)   -> error "out of bounds in heights"
+                                    (Nothing, Nothing)  -> error "out of bounds in both widths, heights") uvec 
         return $ (COO to_return n n)
 ---------------------------------------------------- Delayed --------------------------------------------------------
 
@@ -65,6 +67,36 @@ instance (Arbitrary a, UVector.Unbox a, Sparse r D a, Eq a, Ord a) => Arbitrary 
 -- ---------------------------------------------------------------------------------------------------------------
 -- --------------------------------- Properties ------------------------------------------------------------------
 -- ---------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+-- -- generate random sparse matrix of given size 
+-- -- generate 2 random scalars (integers) r and s
+-- -- check whether r (s A) = (r s) A 
+s_assoc_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> a -> SparseData rep D a -> Bool  
+s_assoc_const_mul_prop r s a_mat = 
+    if is_null a_mat then True 
+    else 
+    if and [(r `scale` (s `scale` a_mat)) == ((r * s) `scale` a_mat), not $ is_null a_mat]
+        then True 
+        else False 
+
+
+-- -- generate random sparse matrix of given size
+-- -- generate second sparse matrix of same size
+-- -- check if (A + B) == (B + A)
+s_commut_add_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => SparseData rep D a  -> SparseData rep D a  -> Bool  
+s_commut_add_prop a_mat b_mat = 
+    let 
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+    in if or [a_w /= b_w, a_h /= b_h, is_null a_mat, is_null b_mat] then True 
+    else  
+        if (a_mat #+ b_mat) == (b_mat #+ a_mat)
+            then True 
+            else False 
 
 -- -- generate a random sparse matrix of given size
 -- -- generate another sparse matrix with same length as above
@@ -81,31 +113,7 @@ s_assoc_add_prop a_mat b_mat c_mat =
         if (a_mat #+ b_mat) #+ c_mat == a_mat #+ (b_mat #+ c_mat) 
                 then True 
                 else False 
-
-
-
--- -- generate random sparse matrix of given size
--- -- generate second sparse matrix of same size
--- -- check if (A + B) == (B + A)
-s_commut_add_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => SparseData rep D a  -> SparseData rep D a  -> Bool  
-s_commut_add_prop a_mat b_mat = 
-    let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
-    in if or [a_w /= b_w, a_h /= b_h, is_null a_mat, is_null b_mat] then True 
-    else  
-        if (a_mat #+ b_mat) == (b_mat #+ a_mat)
-            then True 
-            else False  
-
--- -- generate random sparse matrix of given size 
--- -- generate 2 random scalars (integers) r and s
--- -- check whether r (s A) = (r s) A 
-s_assoc_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> a -> SparseData rep D a -> Bool  
-s_assoc_const_mul_prop r s a_mat = 
-    if (r `scale` (s `scale` a_mat)) == ((r * s) `scale` a_mat)
-        then True 
-        else False 
+ 
 
 
 -- -- generate random scalar r 
