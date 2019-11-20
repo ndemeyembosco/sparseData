@@ -10,30 +10,31 @@ import Data.Maybe (maybe)
 
 
 
-type SVector a = (Int -> a, Int) -- indexing function, length of vector 
+type SVector a = (Int -> Maybe a, Int) -- indexing function, length of vector 
 
 
 -- linear time 
-to_vector ::U.Unbox a => SVector a -> U.Vector a 
-to_vector (f, len) = U.generate len f 
+-- really any monoid here would do 
+to_vector ::(U.Unbox a, Num a) => SVector a -> U.Vector a 
+to_vector (f, len) = U.generate len (\i -> maybe 0 id $ f i) 
 
 
 -- constant time 
 from_vector :: U.Unbox a => U.Vector a -> SVector a 
-from_vector vec =  let len = U.length vec in ((U.!) vec, len)
+from_vector vec =  let len = U.length vec in ((U.!?) vec, len)
 
 null_i :: SVector a -> Bool 
 null_i  = (== 0) . snd 
 
 smap_i :: U.Unbox a => (a -> b) -> SVector a -> SVector b
-smap_i f (g, len) = (f . g, len)
+smap_i f (g, len) = (\i -> f <$> g i, len)
 
 
 szipWith_i :: (U.Unbox a, U.Unbox a, U.Unbox c) => (a -> b -> c) -> SVector a -> SVector b -> SVector c 
-szipWith_i f (g, len) (h, len1) = if len /= len1 then error "length mismatch!" else (\i -> f (g i) (h i), len)  
+szipWith_i f (g, len) (h, len1) = if len /= len1 then error "length mismatch!" else (\i -> f <$> (g i) <*> (h i), len)  
 
 sum_i :: (U.Unbox a, Num a) => SVector a -> a 
-sum_i (f, len) = VU.foldr (\i n ->  n + (f i)) 0 $ VU.enumFromN 0 (len - 1) 
+sum_i (f, len) = VU.foldr (\i n ->  maybe 0 (+n) $ f i) 0 $ VU.enumFromN 0 (len - 1) 
 
 equals_i :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
 equals_i vec1 vec2 = (to_vector vec1) == (to_vector vec2)
@@ -72,10 +73,10 @@ instance (U.Unbox e, Num e) => Sparse r D e where
     s_index (SDelayed _ f) (r, c) = f (r, c) 
     s_height (SDelayed (h, _) _)  = h 
     s_width (SDelayed (_, w) _)   = w 
-    (#.) (SDelayed (h, w) func) v@(f, len) = ((VU.!) part_sums, len)
+    (#.) (SDelayed (h, w) func) v@(f, len) = ((VU.!?) part_sums, len)
                                 where 
-                                 row_func r1 c1   = maybe 0 id $ func (r1, c1)  -- turn Nothings into zeros 
-                                 r_funcs          = VU.map (\ri -> (row_func ri, w)) $ VU.enumFromN 0 (h - 1)  
+                                --  row_func r1 c1   = maybe 0 id $ func (r1, c1)  -- turn Nothings into zeros 
+                                 r_funcs          = VU.map (\ri -> ((curry func) ri, w)) $ VU.enumFromN 0 (h - 1)  
                                  part_sums        = VU.map (\(g, w) -> sum_i $ szipWith_i (*) (g, w) v) r_funcs
     s_to_coo = s_undelay 0
 

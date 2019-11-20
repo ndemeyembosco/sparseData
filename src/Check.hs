@@ -44,7 +44,7 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (Sparse
         (uvec' :: UVector.Vector a) <- arbitraryVector `suchThat` (\v -> UVector.length v == UVector.length widths)
         let 
             !uvec       = UVector.filter (/= 0) uvec'
-            !len        = UVector.length uvec
+            -- !len        = UVector.length uvec
         !to_return <- UVector.imapM (\i x -> do 
                                  let 
                                     y1 = heights UVector.!? i 
@@ -98,6 +98,20 @@ s_commut_add_prop a_mat b_mat =
             then True 
             else False 
 
+-- -- generate random scalar r 
+-- -- generate random sparse matrices A and B 
+-- -- check whether r (A + B) = r A + r B 
+s_distr_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> SparseData rep D a  -> SparseData rep D a  -> Bool  
+s_distr_const_mul_prop r a_mat b_mat = 
+    let 
+        (a_w, a_h) = (s_width a_mat, s_height a_mat)
+        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+    in if a_w /= b_w || a_h /= b_h then True 
+    else 
+        if r `scale` (a_mat #+ b_mat) == (r `scale` a_mat) #+ (r `scale` b_mat)
+            then True 
+            else False
+
 -- -- generate a random sparse matrix of given size
 -- -- generate another sparse matrix with same length as above
 -- -- generate a third
@@ -114,23 +128,6 @@ s_assoc_add_prop a_mat b_mat c_mat =
                 then True 
                 else False 
  
-
-
--- -- generate random scalar r 
--- -- generate random sparse matrices A and B 
--- -- check whether r (A + B) = r A + r B 
-s_distr_const_mul_prop :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> SparseData rep D a  -> SparseData rep D a  -> Bool  
-s_distr_const_mul_prop r a_mat b_mat = 
-    let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
-    in if a_w /= b_w || a_h /= b_h then True 
-    else 
-        if r `scale` (a_mat #+ b_mat) == (r `scale` a_mat) #+ (r `scale` b_mat)
-            then True 
-            else False
-
-
 
 -- -- generate random sparse matrix A 
 -- -- generate random vectors w and v 
@@ -159,7 +156,7 @@ s_distr_add_mult_vec_prop v_vec' a_mat b_mat =
         len        = snd v_vec
     in if or [a_w /= b_w, a_h /= b_h, a_w /= len] then True
     else 
-        if ((a_mat #+ b_mat) #. v_vec) `equals_i` ((a_mat #. v_vec) `addVecs` (b_mat #. v_vec))
+        if ((a_mat #+ b_mat) #. v_vec) `equals_i` ((a_mat #. v_vec) `addVecs` (b_mat #. v_vec)) 
             then True 
             else False 
     where 
