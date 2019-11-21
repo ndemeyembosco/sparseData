@@ -1,12 +1,14 @@
 {-# LANGUAGE TypeFamilies, MultiParamTypeClasses
            , FlexibleInstances, BangPatterns, RankNTypes 
-           , FlexibleContexts #-}
+           , FlexibleContexts 
+           , AllowAmbiguousTypes #-}
 
 module SparseData where 
 import qualified Data.Vector as VU 
 import qualified Data.Vector.Unboxed as U  
 import Control.Monad 
 import Data.Maybe (maybe)
+import qualified Data.Map as M 
 
 
 
@@ -51,6 +53,13 @@ class (U.Unbox e, Num e) => Sparse r ty e where
     -- Default sparse to coo transformation to ease testing
     s_to_coo  :: Num e => SparseData r ty e -> SparseData COO U e 
     s_to_coo  = (s_undelay 0) . delay  
+
+
+
+class Sparse r D e => Undelayable r e where 
+    undelay :: e -> SparseData r D e -> SparseData r U e 
+   
+
 
 
 
@@ -99,6 +108,12 @@ s_undelay e (SDelayed (h, w) func) = COO vals w h
 
 coo_to_sd :: Sparse r D e => SparseData COO U e -> SparseData r D e 
 coo_to_sd arr = let f = s_index arr in SDelayed (s_height arr, s_width arr) f 
+
+convert_sd :: (Sparse r1 D e, Sparse r2 D e) => SparseData r1 D e -> SparseData r2 D e 
+convert_sd (SDelayed (w, h) func) = (SDelayed (w, h) func)  
+
+
+
 
 
 is_null :: Sparse r ty a => SparseData r ty a -> Bool 
@@ -218,6 +233,45 @@ instance (Show a, U.Unbox a) => Show (SparseData ELL U a) where
                 , "values : " ++ show vals 
                 , "col indices : " ++ show col_index
               ]
+
+
+
+---------------------------- undelaying ----------------------------------------------------------------------
+
+instance (U.Unbox e, Num e, Eq e) => Undelayable COO e where
+    undelay  = s_undelay  
+    
+    
+instance (U.Unbox e, Num e, Eq e) => Undelayable CSR e where 
+    undelay zero f@(SDelayed (w, h) func) = CSR offsets col_inds vals h w 
+                 where 
+                    coo_rep                = coo_vals $ s_undelay zero f 
+                    (vals, _, col_inds)    = U.unzip3 coo_rep
+                    offsets                = (compress h) `U.snoc` (U.length vals) 
+                    compress 0 = U.singleton 0
+                    compress n = let prev = compress (n - 1) in prev `U.snoc` (elem_row (n - 1) + U.last prev) 
+                    elem_row r = U.length $ U.filter (/= zero) $ U.generate w (\i -> maybe zero id $ func (i, r))
+
+
+instance (U.Unbox e, Num e, Eq e) => Undelayable ELL e where 
+    undelay zero f@(SDelayed (w, h) func) = ELL max_e col_inds vals h w 
+                   where 
+                    coo_rep                = coo_vals $ s_undelay zero f
+                    (vals, rows, col_inds) = U.unzip3 coo_rep 
+                    max_e                  = find_max 0 rows M.empty  
+                    find_max m vec dict    = if U.null vec then m 
+                                             else 
+                                                let 
+                                                    h = U.head vec 
+                                                    t = U.tail vec 
+                                                in case M.lookup h dict of 
+                                                    Nothing -> find_max m t (M.insert h 1 dict) 
+                                                    Just m1 -> if m1 > m 
+                                                               then 
+                                                                  find_max m1 t (M.insert h (m1 + 1) dict)
+                                                                  else 
+                                                                    find_max m t (M.insert h (m + 1) dict) 
+                                                             
 
 
 --------------------------- Generic Iterative linear solvers --------------------------------------------------------------------------
