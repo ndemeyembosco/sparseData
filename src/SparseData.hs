@@ -1,14 +1,16 @@
 {-# LANGUAGE TypeFamilies, MultiParamTypeClasses
            , FlexibleInstances, BangPatterns, RankNTypes 
            , FlexibleContexts 
-           , AllowAmbiguousTypes #-}
+           , AllowAmbiguousTypes 
+           , UndecidableInstances #-}
 
 module SparseData where 
 import qualified Data.Vector as VU 
 import qualified Data.Vector.Unboxed as U  
 import Control.Monad 
-import Data.Maybe (maybe)
-import qualified Data.Map as M 
+import Data.Maybe (maybe, isJust)
+import qualified Data.Map as M
+ 
 
 
 
@@ -42,7 +44,7 @@ equals_i :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool
 equals_i vec1 vec2 = (to_vector vec1) == (to_vector vec2)
 
 
-class (U.Unbox e, Num e) => Sparse r ty e where 
+class (U.Unbox e, Num e, Eq e) => Sparse r ty e where 
     data SparseData r ty e :: * 
     s_index   :: SparseData r ty e -> (Int, Int) -> Maybe e 
     s_height  :: SparseData r ty e -> Int 
@@ -57,6 +59,8 @@ class (U.Unbox e, Num e) => Sparse r ty e where
 
 
 class Sparse r D e => Undelayable r e where 
+    -- expensive conversion operations! first argument, is a zero! 
+    -- also might have to perform this in parallel!
     undelay :: e -> SparseData r D e -> SparseData r U e 
    
 
@@ -77,7 +81,7 @@ instance (Eq e, Sparse r ty e) => Eq (SparseData r ty e) where
 data D 
 ----------------- Delayed --------------------------------------
 
-instance (U.Unbox e, Num e) => Sparse r D e where 
+instance (U.Unbox e, Num e, Eq e) => Sparse r D e where 
     data SparseData r D e = SDelayed (Int, Int) ((Int, Int) -> Maybe e) -- (height, width), indexing function 
     s_index (SDelayed _ f) (r, c) = f (r, c) 
     s_height (SDelayed (h, _) _)  = h 
@@ -89,8 +93,8 @@ instance (U.Unbox e, Num e) => Sparse r D e where
                                  part_sums        = VU.map (\(g, w) -> sum_i $ szipWith_i (*) (g, w) v) r_funcs
     s_to_coo = s_undelay 0
 
-instance Sparse r D e => Show (SparseData r D e) where 
-    show _ = "<delayed function>"
+instance (U.Unbox e, Show e, Sparse r D e, Num e, Eq e) => Show (SparseData r D e) where 
+    show arr@(SDelayed (w, h) f) = unlines ["<delayed function> : ", show $ s_undelay 0 arr] 
 
 
 delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
@@ -101,10 +105,10 @@ delay arr = SDelayed (s_height arr, s_width arr) (s_index arr)
 -- As in if the Nothing is there just to catch 
 -- indexing errors then, I don't actually think 
 -- any zeros will be produced in this.
-s_undelay :: (U.Unbox e) => e -> SparseData r D e -> SparseData COO U e 
+s_undelay :: (U.Unbox e, Eq e) => e -> SparseData r D e -> SparseData COO U e 
 s_undelay e (SDelayed (h, w) func) = COO vals w h 
         where 
-            vals = U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe e id $ func (r1, c1), r1, c1))
+            vals = U.filter (\(el, _, _) -> el /= e) $ U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (maybe e id $ func (r1, c1), r1, c1))
 
 coo_to_sd :: Sparse r D e => SparseData COO U e -> SparseData r D e 
 coo_to_sd arr = let f = s_index arr in SDelayed (s_height arr, s_width arr) f 
@@ -154,7 +158,7 @@ data U
 
 data COO 
 --------------- COO ------------------------
-instance (U.Unbox e, Num e) => Sparse COO U e where 
+instance (U.Unbox e, Num e, Eq e) => Sparse COO U e where 
     data instance SparseData COO U e   = COO { coo_vals :: U.Vector (e, Int, Int), width :: Int, height :: Int}
     -- indexing is big o length of non zeros
     s_index (COO vals w h) (r, c) = if U.null els then Nothing else let (a1, _, _) = U.head els in Just a1 
@@ -171,7 +175,7 @@ instance (Show a, U.Unbox a) => Show (SparseData COO U a) where
 
 data CSR   
 --------------- CSR -------------------------
-instance (U.Unbox e, Num e) => Sparse CSR U e where 
+instance (U.Unbox e, Num e, Eq e) => Sparse CSR U e where 
     data instance SparseData CSR U e = CSR { row_offsets     :: U.Vector Int
                                        ,  col_index_csr :: U.Vector Int
                                        ,  csr_vals      :: U.Vector e
@@ -182,7 +186,9 @@ instance (U.Unbox e, Num e) => Sparse CSR U e where
     s_index (CSR row_offs col_index vals h w) (r, c) = if U.null els then Nothing else let (_, a1) = U.head els in Just a1
                                  where
                                    to_slice = row_offs U.! r 
-                                   to_start = row_offs U.! (r - 1)
+                                   to_start = case row_offs U.!? (r - 1) of 
+                                                  Nothing -> 0 -- error ("access out of bounds here" ++ show row_offs)
+                                                  Just n  -> n 
                                    vec      = U.slice to_start (to_slice - to_start) $ U.zip col_index vals 
                                    els      = U.filter (\(x, _) -> x == c) vec
     s_height (CSR _ _ _ h _)  = h 
@@ -203,7 +209,7 @@ instance (Show a, U.Unbox a) => Show (SparseData CSR U a) where
 
 data ELL 
 ----------------- ELL -------------------
-instance (U.Unbox e, Num e) => Sparse ELL U e where 
+instance (U.Unbox e, Num e, Eq e) => Sparse ELL U e where 
     data instance SparseData ELL U e = ELL { max_elem_row    :: !Int
                                         , col_index_ell :: U.Vector Int
                                         , ell_vals      :: U.Vector e
@@ -248,29 +254,22 @@ instance (U.Unbox e, Num e, Eq e) => Undelayable CSR e where
                     coo_rep                = coo_vals $ s_undelay zero f 
                     (vals, _, col_inds)    = U.unzip3 coo_rep
                     offsets                = (compress h) `U.snoc` (U.length vals) 
+                    -- write compress with continuations!
                     compress 0 = U.singleton 0
                     compress n = let prev = compress (n - 1) in prev `U.snoc` (elem_row (n - 1) + U.last prev) 
-                    elem_row r = U.length $ U.filter (/= zero) $ U.generate w (\i -> maybe zero id $ func (i, r))
+                    elem_row r = U.length $ U.filter (/= zero) $ U.generate w (\i -> maybe zero id $ func (r, i))
 
 
 instance (U.Unbox e, Num e, Eq e) => Undelayable ELL e where 
     undelay zero f@(SDelayed (w, h) func) = ELL max_e col_inds vals h w 
                    where 
-                    coo_rep                = coo_vals $ s_undelay zero f
-                    (vals, rows, col_inds) = U.unzip3 coo_rep 
-                    max_e                  = find_max 0 rows M.empty  
-                    find_max m vec dict    = if U.null vec then m 
-                                             else 
-                                                let 
-                                                    h = U.head vec 
-                                                    t = U.tail vec 
-                                                in case M.lookup h dict of 
-                                                    Nothing -> find_max m t (M.insert h 1 dict) 
-                                                    Just m1 -> if m1 > m 
-                                                               then 
-                                                                  find_max m1 t (M.insert h (m1 + 1) dict)
-                                                                  else 
-                                                                    find_max m t (M.insert h (m + 1) dict) 
+                    (vals, col_inds) = U.unzip $  U.generate (max_e * w) (\i -> let (r, c) = i `divMod` h in (maybe zero id $ func (r, c), c)) 
+                    max_e            = find_max 0 (h - 1) func  
+                    find_max m 0 f = m 
+                    find_max m r f = let 
+                                       res = VU.map (\i -> f (r, i)) (VU.enumFromN 0 (w - 1))
+                                       len = VU.length $ VU.filter isJust res 
+                                     in if m < len then find_max len (r-1) f else find_max m (r-1) f   
                                                              
 
 

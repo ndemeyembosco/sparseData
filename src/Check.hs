@@ -33,8 +33,9 @@ shrinkVector = fmap GVector.fromList . shrink . GVector.toList
 -------------------------------------------------- Unboxed ------------------------------------------------
 
 instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) => Arbitrary (SparseData COO U a) where 
-    arbitrary = sized $ \n -> do  
+    arbitrary = do  
         (len :: Int) <- arbitrary
+        (n :: Int) <- arbitrary `suchThat` (< 100)
         let 
             !def_height = n 
             !def_width  = n 
@@ -162,6 +163,17 @@ s_distr_add_mult_vec_prop v_vec' a_mat b_mat =
     where 
         addVecs !v1 !v2 = szipWith_i (+) v1 v2 
         v_vec = from_vector v_vec'
+
+
+
+
+-- testing conversions
+s_convert_test :: (Eq (SparseData rep D a), Undelayable r a, Sparse r2 U a, r ~ r2, rep ~ r) => a -> SparseData rep D a  -> Bool
+s_convert_test zero arr = 
+    let 
+        un_arr = undelay zero arr 
+        arr'   = delay un_arr 
+    in arr' == arr 
 
 
 
