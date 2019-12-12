@@ -18,14 +18,13 @@ type SVector a = (Int -> Maybe a, Int) -- indexing function, length of vector
 
 
 -- linear time 
--- really any monoid here would do 
 to_vector ::(U.Unbox a, Num a) => SVector a -> U.Vector a 
 to_vector (f, len) = U.generate len (\i -> maybe 0 id $ f i) 
 
 
 -- constant time 
-from_vector :: U.Unbox a => U.Vector a -> SVector a 
-from_vector vec =  let len = U.length vec in ((U.!?) vec, len)
+from_vector :: (U.Unbox a, Num a, Eq a) => U.Vector a -> SVector a 
+from_vector vec =  let len = U.length vec in (\i -> vec U.!? i >>= \n -> if n == 0 then Nothing else Just n, len)
 
 null_i :: SVector a -> Bool 
 null_i  = (== 0) . snd 
@@ -41,7 +40,7 @@ sum_i :: (U.Unbox a, Num a) => SVector a -> a
 sum_i (f, len) = VU.foldr (\i n ->  maybe 0 (+n) $ f i) 0 $ VU.enumFromN 0 (len - 1) 
 
 equals_i :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
-equals_i vec1 vec2 = (to_vector vec1) == (to_vector vec2)
+equals_i vec1 vec2 = U.foldr (&&) True $! U.zipWith (==) (to_vector vec1) (to_vector vec2)
 
 
 class (U.Unbox e, Num e, Eq e) => Sparse r ty e where 
@@ -88,7 +87,6 @@ instance (U.Unbox e, Num e, Eq e) => Sparse r D e where
     s_width (SDelayed (_, w) _)   = w 
     (#.) (SDelayed (h, w) func) v@(f, len) = ((VU.!?) part_sums, len)
                                 where 
-                                --  row_func r1 c1   = maybe 0 id $ func (r1, c1)  -- turn Nothings into zeros 
                                  r_funcs          = VU.map (\ri -> ((curry func) ri, w)) $ VU.enumFromN 0 (h - 1)  
                                  part_sums        = VU.map (\(g, w) -> sum_i $ szipWith_i (*) (g, w) v) r_funcs
     s_to_coo = s_undelay 0
@@ -140,6 +138,15 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
                         SDelayed (w2, h2) f2 = delay arr2
                         get val = f <$> (f1 val) <*> (f2 val)
                         (w, h)  = if and [w1 == w2, h1 == h2] then (w1, h1) else error "zipWith dimension mismatch!"
+
+(#*) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a
+(#*) a_mat b_mat = SDelayed (w, h) get 
+             where 
+                mat1@(SDelayed (a_w, a_h) f1) = delay a_mat 
+                mat2@(SDelayed (b_w, b_h) f2) = delay b_mat 
+                get (i, j) = VU.foldr (\e prev -> e >>= \n -> prev >>= \m -> Just (n+m) ) (Just 0) 
+                                  $ VU.map (\k -> (*) <$> f1 (i, k) <*> f2 (k, j)) (VU.enumFromN 0 (a_w - 1)) 
+                (w, h) = if a_h == b_w then (a_w, b_h) else error "matrix matrix multiplication dimension mismatch!"
 
 
 (#+) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a

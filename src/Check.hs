@@ -130,6 +130,9 @@ s_assoc_add_prop a_mat b_mat c_mat =
                 else False 
  
 
+
+-------- Linear transformation properties
+-- 1. Transform vectors on left
 -- -- generate random sparse matrix A 
 -- -- generate random vectors w and v 
 -- -- check whether A (w + v) = A w + A v 
@@ -146,6 +149,7 @@ s_assoc_mult_vec_prop  w_vec' v_vec' a_mat =
         len_v  = snd v_vec 
 
 
+-- 2. Transform vectors on right (sum of linear tranformations is a linear transformatioin)
 -- -- generate random sparse matrices A and B 
 -- -- generate random vector v 
 -- -- check whether (A + B) v = A v + B v 
@@ -155,7 +159,7 @@ s_distr_add_mult_vec_prop v_vec' a_mat b_mat =
         (a_w, a_h) = (s_width a_mat, s_height a_mat)
         (b_w, b_h) = (s_width b_mat, s_height b_mat)
         len        = snd v_vec
-    in if or [a_w /= b_w, a_h /= b_h, a_w /= len] then True
+    in if or [a_w /= b_w, a_h /= b_h, a_w /= len, is_null a_mat, is_null b_mat] then True
     else 
         if ((a_mat #+ b_mat) #. v_vec) `equals_i` ((a_mat #. v_vec) `addVecs` (b_mat #. v_vec)) 
             then True 
@@ -163,6 +167,32 @@ s_distr_add_mult_vec_prop v_vec' a_mat b_mat =
     where 
         addVecs !v1 !v2 = szipWith_i (+) v1 v2 
         v_vec = from_vector v_vec'
+
+    
+-- 3. transform scalar vector multiplication
+s_scalar_vec_transform :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => a -> UVector.Vector a -> SparseData rep D a -> Bool
+s_scalar_vec_transform alpha u t_mat = 
+    let 
+        vec@(_, len)         = from_vector u 
+        s_vec                = from_vector $ UVector.map (*alpha) u
+        (t_w, t_h)           = (s_width t_mat, s_height t_mat)
+    in if or [is_null t_mat, t_w /= len] then True 
+       else (t_mat #. s_vec) `equals_i` (alpha `s_scale` (t_mat #. vec))
+    where
+        s_scale alpha = smap_i (*alpha)   
+        
+        
+
+-- 4. linear transformation composition
+s_mult_mult_vec :: (Eq a, Ord a, UVector.Unbox a, Sparse rep D a, Num a, Eq (SparseData rep D a)) => UVector.Vector a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_vec vec a_mat b_mat = 
+    let 
+        (a_w, a_h)  = (s_width a_mat, s_height a_mat)
+        (b_w, b_h)  = (s_width b_mat, s_height b_mat)
+        s_vec@(func, len) = from_vector vec 
+    in 
+        if or [a_h /= b_w, is_null a_mat, is_null b_mat, b_w /= len] then True 
+        else ((a_mat #* b_mat) #. s_vec) `equals_i` (a_mat #. (b_mat #. s_vec))
 
 
 
@@ -174,6 +204,14 @@ s_convert_test zero arr =
         un_arr = undelay zero arr 
         arr'   = delay un_arr 
     in arr' == arr 
+
+
+s_vec_test :: (Eq a, Num a, UVector.Unbox a) => UVector.Vector a  -> Bool
+s_vec_test vec = 
+    let 
+        un_vec = from_vector vec 
+    in (to_vector un_vec) == vec 
+    
 
 
 
