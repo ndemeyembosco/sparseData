@@ -19,25 +19,25 @@ type SVector a = (Int -> Maybe a, Int) -- indexing function, length of vector
 
 -- linear time 
 to_vector ::(U.Unbox a, Num a) => SVector a -> U.Vector a 
-to_vector (f, len) = U.generate len (\i -> maybe 0 id $ f i) 
+to_vector (f, !len) = U.generate len (\i -> maybe 0 id $ f i) 
 
 
 -- constant time 
 from_vector :: (U.Unbox a, Num a, Eq a) => U.Vector a -> SVector a 
-from_vector vec =  let len = U.length vec in (\i -> vec U.!? i >>= \n -> if n == 0 then Nothing else Just n, len)
+from_vector !vec =  let len = U.length vec in (\i -> vec U.!? i >>= \n -> if n == 0 then Nothing else Just n, len)
 
 null_i :: SVector a -> Bool 
 null_i  = (== 0) . snd 
 
 smap_i :: U.Unbox a => (a -> b) -> SVector a -> SVector b
-smap_i f (g, len) = (\i -> f <$> g i, len)
+smap_i f (g, !len) = (\i -> f <$> g i, len)
 
 
 szipWith_i :: (U.Unbox a, U.Unbox a, U.Unbox c) => (a -> b -> c) -> SVector a -> SVector b -> SVector c 
-szipWith_i f (g, len) (h, len1) = if len /= len1 then error "length mismatch!" else (\i -> f <$> (g i) <*> (h i), len)  
+szipWith_i f (g, !len) (h, !len1) = if len /= len1 then error "length mismatch!" else (\i -> f <$> (g i) <*> (h i), len)  
 
 sum_i :: (U.Unbox a, Num a) => SVector a -> a 
-sum_i (f, len) = VU.foldr (\i n ->  maybe 0 (+n) $ f i) 0 $ VU.enumFromN 0 (len - 1) 
+sum_i (f, !len) = VU.foldr (\i n ->  maybe 0 (+n) $ f i) 0 $ VU.enumFromN 0 (len - 1) 
 
 equals_i :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
 equals_i vec1 vec2 = U.foldr (&&) True $! U.zipWith (==) (to_vector vec1) (to_vector vec2)
@@ -126,13 +126,13 @@ is_null mat = U.null vals
 -------------- Polymorphic -----------------------------------------------
 
 map_s :: Sparse r ty e => (e -> b) -> SparseData r ty e -> SparseData r D b 
-map_s f arr = case delay arr of 
+map_s f !arr = case delay arr of 
     SDelayed s g -> SDelayed s (\ix -> f <$> g ix)  
 
 
 
 zipWith_s :: (Sparse r ty a, Sparse r1 ty1 b, r ~ r1) => (a -> b -> c) -> SparseData r ty a -> SparseData r1 ty1 b -> SparseData r D c  -- can only zip two things of the same rep
-zipWith_s f arr1 arr2 = SDelayed (w, h) get 
+zipWith_s f !arr1 !arr2 = SDelayed (w, h) get 
                     where 
                         SDelayed (w1, h1) f1 = delay arr1 
                         SDelayed (w2, h2) f2 = delay arr2
@@ -140,7 +140,7 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
                         (w, h)  = if and [w1 == w2, h1 == h2] then (w1, h1) else error "zipWith dimension mismatch!"
 
 (#*) :: (Sparse r ty a, Num a) => SparseData r ty a -> SparseData r ty a -> SparseData r D a
-(#*) a_mat b_mat = SDelayed (w, h) get 
+(#*) !a_mat !b_mat = SDelayed (w, h) get 
              where 
                 mat1@(SDelayed (a_w, a_h) f1) = delay a_mat 
                 mat2@(SDelayed (b_w, b_h) f2) = delay b_mat 
@@ -157,7 +157,7 @@ zipWith_s f arr1 arr2 = SDelayed (w, h) get
 (#-) = zipWith_s (-)
 
 scale :: (Sparse r ty a, Num a) => a -> SparseData r ty a -> SparseData r D a 
-scale n = map_s (* n)
+scale !n = map_s (* n)
 
 
 data U
