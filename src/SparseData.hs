@@ -160,6 +160,15 @@ scale :: (Sparse r ty a, Num a) => a -> SparseData r ty a -> SparseData r D a
 scale !n = map_s (* n)
 
 
+s_transpose :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e
+s_transpose mat = let 
+                --   w = s_width mat 
+                --   h = s_height mat 
+                    (w, h) = (s_width mat, s_height mat)
+                    new_index_func m (r, c) = s_index m (c, r)
+                  in SDelayed (h, w) (new_index_func mat) 
+
+
 data U
 --------------- Unboxed --------------------
 

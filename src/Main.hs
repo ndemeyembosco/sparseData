@@ -120,6 +120,7 @@ axpydot v w u alpha = z_trans #. su
                       sv      = delay v 
                       z       = sw #- (alpha `scale` sv)
                       z_trans = s_transpose z 
+                      s_transpose (SDelayed (w, h) f) = SDelayed (h, w) (\(i, j) -> f (j, i))
 
 
 
