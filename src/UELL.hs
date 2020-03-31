@@ -28,10 +28,13 @@ instance (U.Unbox e, Num e, Eq e) => Sparse ELL U e where
                                           vec      = U.slice to_start max_e_r $ U.zip col_ind vals 
                                           els      = U.filter (\(x,_) -> x == c) vec
     s_dims (ELL _ _ _ h w) = (w, h)
-    s_undelay e (SDelayed (h, w) func) = undefined 
-		-- ELL vals w h 
-        -- where 
-        --     vals = U.filter (\(el, _, _) -> el /= e) $ U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (func (r1, c1), r1, c1))
+    s_undelay e (SDelayed (h, w) func) = ELL r_max cols vals h w 
+                              where  
+                                vals_r r     = U.unfoldrN w (\c -> if func (r, c) /= 0 then Just ((func (r,c), c), c + 1) else Nothing) 0
+                                rows         = Prelude.map (\r -> vals_r r) [0..h-1]
+                                all_vals_c   = U.concat rows
+                                r_max        = U.maximum $ U.fromList $ Prelude.map U.length rows
+                                (vals, cols) = U.unzip all_vals_c
 
 
 delay :: (U.Unbox e, Num e, Eq e) => SparseData ELL U e -> SparseData ELL D e 

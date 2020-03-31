@@ -95,7 +95,7 @@ transpose :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e
 transpose mat = let 
                     (w, h) = s_dims mat 
                     new_index_func m (r, c) = s_index m (c, r)
-                  in SDelayed (h, w) (new_index_func mat) 
+                in SDelayed (h, w) (new_index_func mat) 
 
 
 convert :: (Sparse r1 D e, Sparse r2 D e) => SparseData r1 D e -> SparseData r2 D e 

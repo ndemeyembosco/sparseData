@@ -16,10 +16,10 @@ import SGeneric
 data CSR   
 instance (U.Unbox e, Num e, Eq e) => Sparse CSR U e where 
     data instance SparseData CSR U e = CSR { row_offsets     :: U.Vector Int
-                                          ,  col_index_csr :: U.Vector Int
-                                          ,  csr_vals      :: U.Vector e
-                                          ,  csr_height    :: !Int
-                                          ,  csr_width     :: !Int
+                                          ,  col_index_csr   :: U.Vector Int
+                                          ,  csr_vals        :: U.Vector e
+                                          ,  csr_height      :: !Int
+                                          ,  csr_width       :: !Int
                                           } 
     -- indexing is big o of maximum number of elements per row
     s_index (CSR row_offs col_index vals h w) (r, c) = let (_, a1) = U.head els in a1
@@ -31,10 +31,16 @@ instance (U.Unbox e, Num e, Eq e) => Sparse CSR U e where
                                    vec      = U.slice to_start (to_slice - to_start) $ U.zip col_index vals 
                                    els      = U.filter (\(x, _) -> x == c) vec
     s_dims (CSR _ _ _ h w) = (w, h)
-    s_undelay e (SDelayed (h, w) func) = undefined 
-		-- CSR vals w h 
-        -- where 
-        --     vals = U.filter (\(el, _, _) -> el /= e) $ U.generate (h * w) (\i -> let (r1, c1) = i `divMod` h in (func (r1, c1), r1, c1))
+    s_undelay e (SDelayed (h, w) func) = CSR r_offs cols vals h w 
+                              where 
+                                  vals_r r     = U.unfoldrN w (\c -> if func (r, c) /= 0 then Just ((func (r,c), c), c + 1) else Nothing) 0  
+                                  rows         = Prelude.map (\r -> vals_r r) [0..h-1]
+                                  all_vals_c   = U.concat rows 
+                                  r_counts     = U.fromList $ Prelude.map U.length rows 
+                                  r_offs       = U.scanl (+) 0 r_counts
+                                  (vals, cols) = U.unzip all_vals_c
+
+
 
 
 delay :: (U.Unbox e, Num e, Eq e) => SparseData CSR U e -> SparseData CSR D e 
