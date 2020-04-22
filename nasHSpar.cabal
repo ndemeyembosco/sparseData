@@ -14,16 +14,51 @@ bug-reports:    https://github.com/githubuser/nasHSpar/issues
 author:         Author name here
 maintainer:     example@example.com
 copyright:      2019 Author name here
-license:        BSD3
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    ChangeLog.md
 
 source-repository head
   type: git
   location: https://github.com/githubuser/nasHSpar
+
+
+executable check
+  main-is: Check.hs
+  other-modules:
+       SGeneric
+     , UCOO
+     , UCSR
+     , UELL
+  hs-source-dirs:
+       src
+  ghc-options: -rtsopts -O2 -eventlog -main-is Check
+  build-depends:
+       base >=4.7 && <14
+     , containers
+     , vector
+     , transformers
+     , QuickCheck >= 2.13.2
+
+executable bench
+  main-is: BenchMark.hs 
+  other-modules:
+       MMParser
+     , SGeneric
+     , UCOO
+     , Kernels
+     , DataLoader
+ hs-source-dirs:
+       src
+ ghc-options: -rtsopts -O2 -eventlog -main-is BenchMark
+ build-depends:
+      base >=4.7 && <14
+    , containers
+    , criterion
+    , vector
+    , parsec
+    , directory
+ default-language: Haskell2010
 
 executable main 
   main-is: Main.hs
@@ -34,27 +69,25 @@ executable main
     , UCOO
     , UCSR 
     , UELL 
+    , Kernels
+    , BenchMark 
+    , MMParser 
+    , DataLoader 
   hs-source-dirs:
       src
-  ghc-options: -threaded -rtsopts -O2 -fllvm -optlo-O3 -eventlog -funfolding-use-threshold=16
+  ghc-options: -rtsopts -O2 -eventlog 
   build-depends:
       QuickCheck >= 2.13.2
-    , abstract-par
     , base >=4.7 && <14
-    , clock
     , containers
     , deepseq
     , ghc-prim
-    , monad-par
-    , monad-par-extras
-    , parallel
     , pcg-random
     , primitive
-    , sparse-linear-algebra
     , transformers
     , vector
-    , vector-sized 
     , parsec 
-    , finite-typelits
+    , criterion 
+    , directory
   default-language: Haskell2010
 
