@@ -14,9 +14,7 @@
 module Check where
 
 import SGeneric
-import UCOO
-import UCSR
-import UELL 
+import qualified UCOO as O  
 import Test.QuickCheck hiding (scale) 
 import Test.QuickCheck.Property 
 import qualified Data.Vector.Unboxed as UVector
@@ -43,7 +41,7 @@ shrinkVector = fmap GVector.fromList . shrink . GVector.toList
 
 
 instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a) 
-         => Arbitrary (SparseData COO U a) where 
+         => Arbitrary (SparseData O.COO U a) where 
     arbitrary = do  
         (len :: Int) <- arbitrary
         (n   :: Int) <- arbitrary `suchThat` (< 100)
@@ -72,14 +70,14 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a)
                        (Just _, Nothing) -> error "out of bounds in widths"
                        (Nothing, Just _) -> error "out of bounds in heights"
                        (Nothing, Nothing)-> error "width & height out of bound"                       ) uvec 
-        return $ (COO to_return n n)
+        return $ (O.COO to_return n n)
 ---------------------------------------------------- Delayed --------------------------------------------------------
 
-instance (Arbitrary a, UVector.Unbox a, Sparse r D a, Eq a, Ord a) 
-         => Arbitrary (SparseData r D a) where 
+instance (Arbitrary a, UVector.Unbox a, Eq a, Ord a, Num a) 
+         => Arbitrary (SparseData O.COO D a) where 
     arbitrary = do 
-        (arr :: SparseData COO U a) <- arbitrary
-        let (interm :: SparseData r D a) = coo_to_sd arr 
+        (arr :: SparseData O.COO U a) <- arbitrary
+        let (interm :: SparseData O.COO D a) = delay arr 
         return interm  
 
        
@@ -102,11 +100,11 @@ s_assoc_const_mul_prop :: (Eq a
                          , Eq (SparseData rep D a)) 
                        => a -> a -> SparseData rep D a -> Bool  
 s_assoc_const_mul_prop r s a_mat = 
-    if is_null a_mat then True 
+    if empty a_mat then True 
     else 
       if and [(r `scale` (s `scale` a_mat))
                == ((r * s) `scale` a_mat)
-              , not $ is_null a_mat]
+              , not $ empty a_mat]
         then True 
         else False 
 
@@ -123,13 +121,13 @@ s_commut_add_prop :: (Eq a
                   => SparseData rep D a  -> SparseData rep D a  -> Bool  
 s_commut_add_prop a_mat b_mat = 
     let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+        (a_w, a_h) = s_dims a_mat 
+        (b_w, b_h) = s_dims b_mat 
     in 
      if or [a_w /= b_w
           , a_h /= b_h
-          , is_null a_mat
-          , is_null b_mat] 
+          , empty a_mat
+          , empty b_mat] 
      then True 
      else  
         if (a_mat #+ b_mat) == (b_mat #+ a_mat)
@@ -149,8 +147,8 @@ s_distr_const_mul_prop :: (Eq a
                              -> SparseData rep D a  -> Bool  
 s_distr_const_mul_prop r a_mat b_mat = 
     let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+        (a_w, a_h) = s_dims a_mat
+        (b_w, b_h) = s_dims b_mat 
     in if a_w /= b_w || a_h /= b_h then True 
     else 
         if r `scale` (a_mat #+ b_mat) == (r `scale` a_mat) #+ (r `scale` b_mat)
@@ -171,9 +169,9 @@ s_assoc_add_prop ::  (Eq a
                  -> SparseData rep D a  -> SparseData rep D a  -> Bool 
 s_assoc_add_prop a_mat b_mat c_mat = 
     let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
-        (c_w, c_h) = (s_width c_mat, s_height c_mat) 
+        (a_w, a_h) = s_dims a_mat
+        (b_w, b_h) = s_dims b_mat 
+        (c_w, c_h) = s_dims c_mat 
     in if not $ and [a_w == b_w, a_w == c_w, a_h == b_h, a_h == c_h] then True
     else 
         if (a_mat #+ b_mat) #+ c_mat == a_mat #+ (b_mat #+ c_mat) 
@@ -198,15 +196,15 @@ s_assoc_mult_vec_prop :: (Eq a
 s_assoc_mult_vec_prop  w_vec' v_vec' a_mat = 
         if or [len_w /= len_v
              , len_w /= w
-             , null_i w_vec || null_i v_vec
-             , is_null a_mat] then True 
+             , vnull w_vec || vnull v_vec
+             , empty a_mat] then True 
         else (a_mat #. (w_vec ^+^ v_vec)) 
-             `equals_i` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
+             `veq` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
     where   
         w_vec  = from_vector w_vec'
         v_vec  = from_vector v_vec'
-        (^+^)  = szipWith_i (+)
-        (w, h) = (s_width a_mat, s_height a_mat)
+        (^+^)  = vzipWith (+)
+        (w, h) = s_dims a_mat
         len_w  = snd w_vec 
         len_v  = snd v_vec 
 
@@ -226,22 +224,22 @@ s_distr_add_mult_vec_prop :: (Eq a
                           -> SparseData rep D a  -> Bool  
 s_distr_add_mult_vec_prop v_vec' a_mat b_mat = 
     let 
-        (a_w, a_h) = (s_width a_mat, s_height a_mat)
-        (b_w, b_h) = (s_width b_mat, s_height b_mat)
+        (a_w, a_h) = s_dims a_mat 
+        (b_w, b_h) = s_dims b_mat 
         len        = snd v_vec
     in if or [a_w /= b_w
             , a_h /= b_h
             , a_w /= len
-            , is_null a_mat
-            , is_null b_mat] then True
+            , empty a_mat
+            , empty b_mat] then True
        else 
         if ((a_mat #+ b_mat) #. v_vec) 
-           `equals_i` ((a_mat #. v_vec) 
+           `veq` ((a_mat #. v_vec) 
            `addVecs` (b_mat #. v_vec)) 
         then True 
         else False 
     where 
-        addVecs !v1 !v2 = szipWith_i (+) v1 v2 
+        addVecs !v1 !v2 = vzipWith (+) v1 v2 
         v_vec = from_vector v_vec'
 
     
@@ -257,50 +255,50 @@ s_scalar_vec_transform alpha u t_mat =
     let 
         vec@(_, len)         = from_vector u 
         s_vec                = from_vector $ UVector.map (*alpha) u
-        (t_w, t_h)           = (s_width t_mat, s_height t_mat)
-    in if or [is_null t_mat, t_w /= len] then True 
-       else (t_mat #. s_vec) `equals_i` (alpha `s_scale` (t_mat #. vec))
+        (t_w, t_h)           = s_dims t_mat 
+    in if or [empty t_mat, t_w /= len] then True 
+       else (t_mat #. s_vec) `veq` (alpha `s_scale` (t_mat #. vec))
     where
-        s_scale alpha = smap_i (*alpha)   
+        s_scale alpha = vmap (*alpha)   
         
         
 
 -- 4. linear transformation composition
-s_mult_mult_vec :: (Eq a
-                  , Ord a
-                  , UVector.Unbox a
-                  , Sparse rep D a
-                  , Num a
-                  , Eq (SparseData rep D a)) 
-                => UVector.Vector a 
-                -> SparseData rep D a -> SparseData rep D a -> Bool 
-s_mult_mult_vec vec a_mat b_mat = 
-    let 
-        (a_w, a_h)  = (s_width a_mat, s_height a_mat)
-        (b_w, b_h)  = (s_width b_mat, s_height b_mat)
-        s_vec@(func, len) = from_vector vec 
-    in 
-        if or [a_h /= b_w
-             , is_null a_mat
-             , is_null b_mat
-             , b_w /= len] then True 
-        else ((a_mat #* b_mat) #. s_vec) 
-             `equals_i` (a_mat #. (b_mat #. s_vec))
+-- s_mult_mult_vec :: (Eq a
+--                  , Ord a
+--                  , UVector.Unbox a
+--                  , Sparse rep D a
+--                  , Num a
+--                  , Eq (SparseData rep D a)) 
+--                => UVector.Vector a 
+--                -> SparseData rep D a -> SparseData rep D a -> Bool 
+-- s_mult_mult_vec vec a_mat b_mat = 
+--    let 
+--        (a_w, a_h)  = s_dims a_mat
+--        (b_w, b_h)  = s_dims b_mat 
+--        s_vec@(func, len) = from_vector vec 
+--    in 
+--        if or [a_h /= b_w
+--             , vnull a_mat
+--             , vnull b_mat
+--             , b_w /= len] then True 
+--        else ((a_mat #* b_mat) #. s_vec) 
+--             `equals_i` (a_mat #. (b_mat #. s_vec))
 
 
 
 
 -- testing conversions
-s_convert_test :: (Eq (SparseData rep D a)
-                 , Undelayable r a
-                 , Sparse r2 U a
-                 , r ~ r2
-                 , rep ~ r) => a -> SparseData rep D a  -> Bool
-s_convert_test zero arr = 
-    let 
-        un_arr = undelay zero arr 
-        arr'   = delay un_arr 
-    in arr' == arr 
+-- s_convert_test :: (Eq (SparseData rep D a)
+--                 , Undelayable r a
+--                 , Sparse r2 U a
+--                 , r ~ r2
+--                 , rep ~ r) => a -> SparseData rep D a  -> Bool
+-- s_convert_test zero arr = 
+--    let 
+--        un_arr = undelay zero arr 
+--        arr'   = delay un_arr 
+--    in arr' == arr 
 
 
 s_vec_test :: (Eq a, Num a, UVector.Unbox a) => UVector.Vector a  -> Bool
@@ -311,7 +309,8 @@ s_vec_test vec =
     
 
 
-
+main :: IO () 
+main = undefined 
 
 
 
