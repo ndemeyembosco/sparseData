@@ -3,6 +3,8 @@
 module MMParser where 
 
 import qualified Data.Vector.Unboxed as U 
+import System.Environment (getArgs)
+import System.Directory
 
 
 import qualified Text.Parsec            as P
@@ -48,20 +50,10 @@ parseLZDouble = (\s -> read s :: Double)
                 <$> P.many mydigit))
 
 mysigned_double :: Parser Double 
-mysigned_double = choice [
-                    signeddouble
-                 , (choice [
-                            P.try mydouble
-                          , (fromInteger <$> myinteger)
-                           ])
-                 , parseNegDouble
-                 , parseLZDouble] 
+mysigned_double = (P.try parseNegDouble) P.<|> (P.try signeddouble) P.<|>  (P.try mydouble) P.<|> (P.try (fromInteger <$> myinteger)) P.<|> (P.try parseLZDouble) 
    where 
-     signeddouble = makeNum <$> (choice [mysymbol "-", mysymbol "+"]) 
-                            <*> (choice [
-                                          P.try mydouble
-                                        , (fromInteger <$> myinteger)
-                                        ])
+     signeddouble = makeNum <$> (mysymbol "-" P.<|> mysymbol "+") 
+                            <*> (P.try mydouble P.<|> (fromInteger <$> myinteger))
      makeNum "-" d = negate d 
      makeNum "+" d = d 
 
@@ -126,7 +118,7 @@ parseMMExchange = (P.many parseCommentLine)
 
 
 mm_to_s_data :: MMExchange -> SparseData COO U Double 
-mm_to_s_data Empty = undefined 
+mm_to_s_data Empty = COO (U.fromList []) 0 0 
 mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries) 
                    =  COO 
                      {
@@ -136,3 +128,15 @@ mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries)
                                                entries)
                      , width=w
                      , height=h}
+
+
+-- main :: IO () 
+-- main = do 
+--   args <- getArgs 
+--   let 
+--     fname = head args 
+--   fcontents <- readFile fname 
+--   case myparse parseMMExchange fcontents of 
+--     Right mat -> print mat 
+--     Left err  -> error $ show err 
+

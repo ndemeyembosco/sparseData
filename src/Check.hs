@@ -15,6 +15,10 @@ module Check where
 
 import SGeneric
 import qualified UCOO as O  
+import qualified UCSR as R 
+import qualified UELL as E 
+import qualified UCSC as C 
+import qualified UDNS as D 
 import Test.QuickCheck hiding (scale) 
 import Test.QuickCheck.Property 
 import qualified Data.Vector.Unboxed as UVector
@@ -44,7 +48,7 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a)
          => Arbitrary (SparseData O.COO U a) where 
     arbitrary = do  
         (len :: Int) <- arbitrary
-        (n   :: Int) <- arbitrary `suchThat` (< 100)
+        (n   :: Int) <- arbitrary `suchThat` (< 1000)
         let 
             !def_height = n 
             !def_width  = n 
@@ -54,13 +58,10 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a)
                                      $ UVector.fromList $ sort 
                                      $ S.toList $ S.fromList 
                                      $ zip heights' widths' 
-        (uvec' :: UVector.Vector a) <- arbitraryVector `suchThat` 
+        (uvec :: UVector.Vector a) <- arbitraryVector `suchThat` 
                                          (\v -> 
-                                            UVector.length v 
+                                            (UVector.length $ UVector.filter (/= 0) v) 
                                             == UVector.length widths)
-        let 
-            !uvec       = UVector.filter (/= 0) uvec'
-            -- !len        = UVector.length uvec
         !to_return <- UVector.imapM (\i x -> do 
                       let 
                        y1 = heights UVector.!? i 
@@ -69,15 +70,49 @@ instance (Arbitrary a, UVector.Unbox a, Num a, Eq a, Ord a)
                        (Just y, Just z)  -> return (x, y, z) 
                        (Just _, Nothing) -> error "out of bounds in widths"
                        (Nothing, Just _) -> error "out of bounds in heights"
-                       (Nothing, Nothing)-> error "width & height out of bound"                       ) uvec 
+                       (Nothing, Nothing)-> error "width & height out of bound" ) uvec 
         return $ (O.COO to_return n n)
+
+-- CSR 
+instance (Arbitrary (SparseData O.COO U e), Undelay R.CSR e) 
+         => Arbitrary (SparseData R.CSR U e) where 
+             arbitrary = do 
+                 (arr :: SparseData O.COO U e) <- arbitrary 
+                 let (to_return :: SparseData R.CSR U e) = manifest_convert arr 
+                 return to_return 
+
+
+-- ELL 
+instance (Arbitrary (SparseData O.COO U e), Undelay E.ELL e) 
+         => Arbitrary (SparseData E.ELL U e) where 
+             arbitrary = do 
+                 (arr :: SparseData O.COO U e) <- arbitrary 
+                 let (to_return :: SparseData E.ELL U e) = (manifest_convert arr) 
+                 return to_return
+
+
+-- CSC 
+instance (Arbitrary (SparseData O.COO U e), Undelay C.CSC e) 
+         => Arbitrary (SparseData C.CSC U e) where 
+             arbitrary = do 
+                 (arr :: SparseData O.COO U e) <- arbitrary 
+                 let (to_return :: SparseData C.CSC U e) = (manifest_convert arr) 
+                 return to_return
+
+-- DNS 
+instance (Arbitrary (SparseData O.COO U e), Undelay D.DNS e) 
+         => Arbitrary (SparseData D.DNS U e) where 
+             arbitrary = do 
+                 (arr :: SparseData O.COO U e) <- arbitrary 
+                 let (to_return :: SparseData D.DNS U e) = (manifest_convert arr) 
+                 return to_return
 ---------------------------------------------------- Delayed --------------------------------------------------------
 
-instance (Arbitrary a, UVector.Unbox a, Eq a, Ord a, Num a) 
-         => Arbitrary (SparseData O.COO D a) where 
+instance (Arbitrary (SparseData ty U e), Sparse ty U e)
+         => Arbitrary (SparseData ty D e) where 
     arbitrary = do 
-        (arr :: SparseData O.COO U a) <- arbitrary
-        let (interm :: SparseData O.COO D a) = delay arr 
+        (arr :: SparseData ty U e) <- arbitrary
+        let (interm :: SparseData ty D e) = delay arr 
         return interm  
 
        
@@ -96,7 +131,7 @@ s_assoc_const_mul_prop :: (Eq a
                          , Ord a
                          , UVector.Unbox a
                          , Sparse rep D a
-                         , Num a
+                         , Num a, Undelay rep a 
                          , Eq (SparseData rep D a)) 
                        => a -> a -> SparseData rep D a -> Bool  
 s_assoc_const_mul_prop r s a_mat = 
@@ -116,7 +151,7 @@ s_commut_add_prop :: (Eq a
                     , Ord a
                     , UVector.Unbox a
                     , Sparse rep D a
-                    , Num a
+                    , Num a, Undelay rep a 
                     , Eq (SparseData rep D a)) 
                   => SparseData rep D a  -> SparseData rep D a  -> Bool  
 s_commut_add_prop a_mat b_mat = 
@@ -189,20 +224,21 @@ s_assoc_mult_vec_prop :: (Eq a
                         , Ord a
                         , UVector.Unbox a
                         , Sparse rep D a
-                        , Num a
+                        , Num a, Undelay rep a 
                         , Eq (SparseData rep D a)) 
                       => UVector.Vector a 
                       -> UVector.Vector a -> SparseData rep D a -> Bool  
 s_assoc_mult_vec_prop  w_vec' v_vec' a_mat = 
         if or [len_w /= len_v
              , len_w /= w
-             , vnull w_vec || vnull v_vec
+             , vnull w_vec || vnull v_vec || all_zeros w_vec' || all_zeros v_vec' 
              , empty a_mat] then True 
         else (a_mat #. (w_vec ^+^ v_vec)) 
              `veq` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
     where   
-        w_vec  = from_vector w_vec'
-        v_vec  = from_vector v_vec'
+        w_vec  = from_vector $ UVector.map (\_ -> fromInteger 1) w_vec'
+        v_vec  = from_vector $ UVector.map (\_ -> fromInteger 1) v_vec'
+        all_zeros v = UVector.foldr (\a b -> (a == 0) && b) True v 
         (^+^)  = vzipWith (+)
         (w, h) = s_dims a_mat
         len_w  = snd w_vec 
@@ -217,7 +253,7 @@ s_distr_add_mult_vec_prop :: (Eq a
                             , Ord a
                             , UVector.Unbox a
                             , Sparse rep D a
-                            , Num a
+                            , Num a, Undelay rep a 
                             , Eq (SparseData rep D a)) 
                           => UVector.Vector a 
                           -> SparseData rep D a  
@@ -248,7 +284,7 @@ s_scalar_vec_transform :: (Eq a
                          , Ord a
                          , UVector.Unbox a
                          , Sparse rep D a
-                         , Num a
+                         , Num a, Undelay rep a 
                          , Eq (SparseData rep D a)) 
                        => a -> UVector.Vector a -> SparseData rep D a -> Bool
 s_scalar_vec_transform alpha u t_mat = 
@@ -289,16 +325,11 @@ s_scalar_vec_transform alpha u t_mat =
 
 
 -- testing conversions
--- s_convert_test :: (Eq (SparseData rep D a)
---                 , Undelayable r a
---                 , Sparse r2 U a
---                 , r ~ r2
---                 , rep ~ r) => a -> SparseData rep D a  -> Bool
--- s_convert_test zero arr = 
---    let 
---        un_arr = undelay zero arr 
---        arr'   = delay un_arr 
---    in arr' == arr 
+s_convert_test :: (Eq (SparseData rep U a), Undelay rep a) => SparseData rep U a  -> Bool
+s_convert_test arr = 
+    let 
+        arr'    = s_undelay $ delay arr 
+    in arr' == arr 
 
 
 s_vec_test :: (Eq a, Num a, UVector.Unbox a) => UVector.Vector a  -> Bool
@@ -310,7 +341,252 @@ s_vec_test vec =
 
 
 main :: IO () 
-main = undefined 
+main = do 
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_vec_test :: UVector.Vector Double -> Bool)
+--  print "testing COO ... \n\n"
+
+--  print "undelay . delay = id : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_convert_test :: SparseData O.COO U Double -> Bool)
+
+--  print " r (s A) == (r s) A: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_const_mul_prop :: Double 
+--                                 -> Double 
+--                                 -> SparseData O.COO D Double -> Bool)
+
+--  print "(A + B) == (B + A): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_commut_add_prop :: SparseData O.COO D Double 
+--                                     -> SparseData O.COO D Double -> Bool)
+
+--  print "r (A + B) = r A + r B: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_const_mul_prop :: Double 
+--                                 -> SparseData O.COO D Double 
+--                                 -> SparseData O.COO D Double -> Bool)
+
+--  print "(A + B) + C == A + (B + C): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_add_prop :: SparseData O.COO D Double 
+--                                   -> SparseData O.COO D Double 
+--                                   -> SparseData O.COO D Double -> Bool)
+
+--  print "A (w + v) = A w + A v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                (s_assoc_mult_vec_prop :: UVector.Vector Double 
+--                                   -> UVector.Vector Double 
+--                                   -> SparseData O.COO D Double -> Bool)
+
+--  print "(A + B) v = A v + B v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+--                                   -> SparseData O.COO D Double 
+--                                   -> SparseData O.COO D Double -> Bool)
+
+--  print "A (a  u) = a  (A . u): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_scalar_vec_transform :: Int
+--                                   -> UVector.Vector Int 
+--                                   -> SparseData O.COO D Int -> Bool)
+
+--  print "################################################################ \n"
+
+
+--  print "testing CSR ... \n\n"
+--  print "undelay . delay = id : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_convert_test :: SparseData R.CSR U Double -> Bool)
+
+--  print " r (s A) == (r s) A: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_const_mul_prop :: Double 
+--                                 -> Double 
+--                                 -> SparseData R.CSR D Double -> Bool)
+
+--  print "(A + B) == (B + A): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_commut_add_prop :: SparseData R.CSR D Double 
+--                                     -> SparseData R.CSR D Double -> Bool)
+
+--  print "r (A + B) = r A + r B: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_const_mul_prop :: Double 
+--                                 -> SparseData R.CSR D Double 
+--                                 -> SparseData R.CSR D Double -> Bool)
+
+--  print "(A + B) + C == A + (B + C): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_add_prop :: SparseData R.CSR D Double 
+--                                   -> SparseData R.CSR D Double 
+--                                   -> SparseData R.CSR D Double -> Bool)
+
+--  print "A (w + v) = A w + A v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                (s_assoc_mult_vec_prop :: UVector.Vector Double 
+--                                   -> UVector.Vector Double 
+--                                   -> SparseData R.CSR D Double -> Bool)
+
+--  print "(A + B) v = A v + B v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+--                                   -> SparseData R.CSR D Double 
+--                                   -> SparseData R.CSR D Double -> Bool)
+
+--  print "A (a  u) = a  (A . u): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_scalar_vec_transform :: Int
+--                                   -> UVector.Vector Int 
+--                                   -> SparseData R.CSR D Int -> Bool)
+
+--  print "################################################################ \n"
+
+
+--  print "testing ELL ... \n \n"
+--  print "undelay . delay = id : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_convert_test :: SparseData E.ELL U Double -> Bool)
+
+--  print " r (s A) == (r s) A: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_const_mul_prop :: Double 
+--                                 -> Double 
+--                                 -> SparseData E.ELL D Double -> Bool)
+
+--  print "(A + B) == (B + A): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_commut_add_prop :: SparseData E.ELL D Double 
+--                                     -> SparseData E.ELL D Double -> Bool)
+
+--  print "r (A + B) = r A + r B: \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_const_mul_prop :: Double 
+--                                 -> SparseData E.ELL D Double 
+--                                 -> SparseData E.ELL D Double -> Bool)
+
+--  print "(A + B) + C == A + (B + C): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_assoc_add_prop :: SparseData E.ELL D Double 
+--                                   -> SparseData E.ELL D Double 
+--                                   -> SparseData E.ELL D Double -> Bool)
+
+--  print "A (w + v) = A w + A v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                (s_assoc_mult_vec_prop :: UVector.Vector Double 
+--                                   -> UVector.Vector Double 
+--                                   -> SparseData E.ELL D Double -> Bool)
+
+--  print "(A + B) v = A v + B v : \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+--                                   -> SparseData E.ELL D Double 
+--                                   -> SparseData E.ELL D Double -> Bool)
+
+--  print "A (a  u) = a  (A . u): \n"
+--  quickCheckWith (stdArgs {maxSuccess=1000}) 
+--                 (s_scalar_vec_transform :: Int
+--                                   -> UVector.Vector Int 
+--                                   -> SparseData E.ELL D Int -> Bool)
+ 
+--  print "################################################################ \n"
+
+
+-- CSC tests 
+ print "testing CSC ... \n\n"
+ print "undelay . delay = id : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_convert_test :: SparseData C.CSC U Double -> Bool)
+
+ print " r (s A) == (r s) A: \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_assoc_const_mul_prop :: Double 
+                                -> Double 
+                                -> SparseData C.CSC D Double -> Bool)
+
+ print "(A + B) == (B + A): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_commut_add_prop :: SparseData C.CSC D Double 
+                                    -> SparseData C.CSC D Double -> Bool)
+
+ print "r (A + B) = r A + r B: \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_distr_const_mul_prop :: Double 
+                                -> SparseData C.CSC D Double 
+                                -> SparseData C.CSC D Double -> Bool)
+
+ print "(A + B) + C == A + (B + C): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_assoc_add_prop :: SparseData C.CSC D Double 
+                                  -> SparseData C.CSC D Double 
+                                  -> SparseData C.CSC D Double -> Bool)
+
+ print "A (w + v) = A w + A v : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+               (s_assoc_mult_vec_prop :: UVector.Vector Double 
+                                  -> UVector.Vector Double 
+                                  -> SparseData C.CSC D Double -> Bool)
+
+ print "(A + B) v = A v + B v : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+                                  -> SparseData C.CSC D Double 
+                                  -> SparseData C.CSC D Double -> Bool)
+
+ print "A (a  u) = a  (A . u): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_scalar_vec_transform :: Int
+                                  -> UVector.Vector Int 
+                                  -> SparseData C.CSC D Int -> Bool)
+
+
+ print "testing DNS ... \n\n"
+ print "undelay . delay = id : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_convert_test :: SparseData D.DNS U Double -> Bool)
+
+ print " r (s A) == (r s) A: \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_assoc_const_mul_prop :: Double 
+                                -> Double 
+                                -> SparseData D.DNS D Double -> Bool)
+
+ print "(A + B) == (B + A): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_commut_add_prop :: SparseData D.DNS D Double 
+                                    -> SparseData D.DNS D Double -> Bool)
+
+ print "r (A + B) = r A + r B: \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_distr_const_mul_prop :: Double 
+                                -> SparseData D.DNS D Double 
+                                -> SparseData D.DNS D Double -> Bool)
+
+ print "(A + B) + C == A + (B + C): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_assoc_add_prop :: SparseData D.DNS D Double 
+                                  -> SparseData D.DNS D Double 
+                                  -> SparseData D.DNS D Double -> Bool)
+
+ print "A (w + v) = A w + A v : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+               (s_assoc_mult_vec_prop :: UVector.Vector Double 
+                                  -> UVector.Vector Double 
+                                  -> SparseData D.DNS D Double -> Bool)
+
+ print "(A + B) v = A v + B v : \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+                                  -> SparseData D.DNS D Double 
+                                  -> SparseData D.DNS D Double -> Bool)
+
+ print "A (a  u) = a  (A . u): \n"
+ quickCheckWith (stdArgs {maxSuccess=1000}) 
+                (s_scalar_vec_transform :: Int
+                                  -> UVector.Vector Int 
+                                  -> SparseData D.DNS D Int -> Bool)
+    
+ return () 
 
 
 

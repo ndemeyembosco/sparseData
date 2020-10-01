@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, MultiParamTypeClasses
            , FlexibleInstances, BangPatterns, RankNTypes 
            , FlexibleContexts 
-           , AllowAmbiguousTypes 
+           , AllowAmbiguousTypes, ScopedTypeVariables 
            , UndecidableInstances, DataKinds #-}
 
 module SGeneric where 
@@ -12,7 +12,6 @@ import Control.Monad
 import Data.Maybe (maybe, isJust)
 import Data.Functor.Identity 
 import qualified Data.Map as M
-import GHC.TypeNats
 import Prelude hiding (map, zipWith)
 
 
@@ -22,7 +21,7 @@ type SVector a = (Int -> a, Int)
 
 
 to_vector ::U.Unbox a => SVector a -> U.Vector a 
-to_vector ((f, len)) = U.generate len f 
+to_vector (f, !len) = U.generate len f 
 
 
 from_vector :: U.Unbox a => U.Vector a -> SVector a 
@@ -33,56 +32,76 @@ vnull :: U.Unbox a => SVector a -> Bool
 vnull  = (== 0) . snd  
 
 vmap :: U.Unbox a => (a -> b) -> SVector a -> SVector b
-vmap f ((g, len)) = (f . g, len)
+vmap f (g, !len) = (f . g, len)
+
+
 
 
 vzipWith :: (U.Unbox a, U.Unbox a, U.Unbox c) 
          => (a -> b -> c) -> SVector a -> SVector b -> SVector c 
-vzipWith f ((g, len1)) ((h, len2)) = (\i -> f (g i) (h i), len1)  
+vzipWith f (g, !len1) (h, !len2) = (\i -> f (g i) (h i), len1) 
+
+(!+!) :: (U.Unbox a, Num a) 
+      =>  SVector a -> SVector a -> SVector a  
+(!+!)  = vzipWith (+)
+
+(!-!) :: (U.Unbox a, Num a) 
+      =>  SVector a -> SVector a -> SVector a 
+(!-!)  = vzipWith (-)
+
+(!*!) :: (U.Unbox a, Num a) => a -> SVector a -> SVector a 
+(!*!) x = vmap (* x) 
 
 vsum :: (U.Unbox a, Num a) => SVector a -> a 
-vsum ((f, len)) = VU.foldr (\i n -> n + (f i)) 0 $ VU.enumFromN 0 (len - 1) 
+vsum (f, !len) = U.foldr' (\i n -> n + (f i)) 0 $ U.enumFromN 0 (len - 1) 
+
+(!.!) :: (U.Unbox a, Num a) => SVector a -> SVector a -> a 
+(!.!) v1 = vsum . vzipWith (*) v1 
+
 
 veq :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
-veq vec1 vec2 = U.foldr (&&) True $! U.zipWith 
+veq !vec1 !vec2 = U.foldr (&&) True $! U.zipWith 
                                      (==) (to_vector vec1) (to_vector vec2)
 
 
 
 class (U.Unbox e, Num e, Eq e) => Sparse r (ty :: RepIndex) e where 
-    -- type r ?
     data SparseData r (ty :: RepIndex) e :: * 
     s_index   :: SparseData r ty e -> (Int, Int) -> e 
     s_dims    :: SparseData r ty e -> (Int, Int) 
     -- By default matVec 
-    (#.)      :: SparseData r ty e -> SVector e -> SVector e 
+    (#.)      :: Num e => SparseData r ty e -> SVector e -> SVector e 
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
-    s_undelay :: e -> SparseData r D e -> SparseData r U e 
+
+class (Sparse r D e, Sparse r U e) => Undelay r e where 
+    s_undelay :: SparseData r D e -> SparseData r U e 
+    non_zeros :: SparseData r U e      -> U.Vector e 
+    
 
 
 
 instance (U.Unbox e, Num e, Eq e) => Sparse r D e where 
     data SparseData r D e         = SDelayed (Int, Int) ((Int, Int) -> e) 
-    -- (height, width), indexing function 
-    s_index (SDelayed _ f) (r, c) = f (r, c) 
-    s_dims (SDelayed (w, h) _)    = (w, h) 
-    (#.) (SDelayed (w, h) func) v@(f, len) = ((VU.!) part_sums, len)
+    s_index (SDelayed _ f) (!r, !c) = f (r, c) 
+    s_dims (SDelayed (!w, !h) _)    = (w, h) 
+    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = ((VU.!) part_sums, len)
        where 
-         r_funcs   = VU.map (\ri -> ((curry func) ri, w)) 
-                           $ VU.enumFromN 0 (h - 1)  
-         part_sums = VU.map (\(g, w) -> vsum 
-                                        $ vzipWith (*) (g, w) v) r_funcs
+         r_funcs   = VU.map (\ri -> ((curry m_index_f) ri, w)) 
+                           $ VU.enumFromN 0 h   
+         part_sums = VU.map (\(g, w) -> (g, w) !.! v) r_funcs
 
 
 
--- instance (Eq e, Sparse r ty e, U.Unbox e) => Eq (SparseData r ty e) where 
---     arr1 == arr2 = and_v (vals_vec mat)    
---            where 
---             and_v  l     = U.foldr (&&) True l  
---             darr1        = delay arr1 
---             darr2        = delay arr2
---             mat          = s_undelay True $ zipWith_s (==) darr1 darr2
---             vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
+--instance (Eq e, Num e, Sparse r U e
+--              , Sparse r2 U e, r ~ r2, U.Unbox e) => Eq (SparseData COO U e) where 
+--    arr1 == arr2 = (and_v v_vec) == (U.length v_vec)    
+--           where 
+--            v_vec        = vals_vec mat
+--            and_v  l     = U.foldr (+) 0 l  
+--            darr1   = delay arr1   
+--            darr2   = delay arr2
+--            mat          = s_undelay 0 $ zipWith (\x y -> if x == y then fromInteger 1 else 0) darr1 darr2  
+--            vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
 
 
 delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
@@ -101,11 +120,18 @@ convert :: (Sparse r1 D e, Sparse r2 D e)
 convert (SDelayed (w, h) func) = (SDelayed (w, h) func)  
 
 
+manifest_convert :: (Undelay r1 e, Undelay r2 e) 
+                 => SparseData r1 U e -> SparseData r2 U e 
+manifest_convert  = s_undelay . convert . delay   
 
 
 
-empty :: Sparse r ty a => SparseData r ty a -> Bool 
-empty mat = (0, 0) == (s_dims mat)
+
+
+empty :: (Sparse r ty a, Undelay r a) => SparseData r ty a -> Bool 
+empty mat = (0, 0) == (s_dims mat) || (U.null $ non_zeros $ s_undelay dmat)
+     where 
+       dmat = delay mat 
 
 -------------- Polymorphic -----------------------------------------------
 
@@ -115,10 +141,9 @@ map f !arr = case delay arr of
 
 
 
-zipWith :: (Sparse r ty a, Sparse r1 ty1 b, r ~ r1) 
+zipWith :: (Sparse r ty a, Sparse r1 ty1 b, r ~ r1, ty ~ ty1) 
         => (a -> b -> c) -> SparseData r ty a 
         -> SparseData r1 ty1 b -> SparseData r D c  
--- can only zip two things of the same rep
 zipWith f !arr1 !arr2 = SDelayed (w1, h1) get 
    where 
      SDelayed (w1, h1) f1 = delay arr1 
@@ -161,5 +186,9 @@ minus = (#-)
 scale :: (Sparse r ty a, Num a) 
       => a -> SparseData r ty a -> SparseData r D a 
 scale !n = map (* n)
+
+
+
+
 
 

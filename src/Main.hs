@@ -1,4 +1,7 @@
-{-# LANGUAGE GADTs, ViewPatterns, BangPatterns #-}
+{-# LANGUAGE GADTs
+         , ViewPatterns
+         , BangPatterns
+         , DataKinds #-}
 
 
 module Main where 
@@ -19,7 +22,8 @@ import qualified System.Random.PCG.Fast.Pure as SR
 import System.CPUTime 
 import Text.Printf  
 import           Text.Parsec.String     (Parser, parseFromFile)
-import SparseData 
+-- import SparseData
+import SGeneric 
 
 
 
@@ -147,11 +151,11 @@ atax a x = a_tr #. (sa #. sx)
         where 
             sx   = from_vector x 
             sa   = delay a 
-            a_tr = s_transpose sa 
+            a_tr = SGeneric.transpose sa 
 
 -- -- bicgk 
 bicgk :: (Sparse rep ty a, U.Unbox a, Floating a) => SparseData rep ty a -> U.Vector a -> U.Vector a -> (SVector a, SVector a)
-bicgk a p r = (sa #. sp, s_transpose sa #. sr)
+bicgk a p r = (sa #. sp, SGeneric.transpose sa #. sr)
        where 
            sa = delay a 
            sp = from_vector p 
@@ -164,14 +168,14 @@ smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2
                         where 
                             smat           = delay mat 
                             (svec1, svec2) = (from_vector vec1, from_vector vec2) 
-                            (^+^)          = szipWith_i (+)
+                            (^+^)          = vzipWith (+)
 
 
 -- gemv 
 gemv :: (Sparse rep ty a, U.Unbox a, Floating a) => a -> a -> SparseData rep ty a  -> U.Vector a -> U.Vector a -> SVector a 
-gemv alpha beta a x y = (alpha `scale` sa #. sx) ^+^ (smap_i (*beta) sy) 
+gemv alpha beta a x y = (alpha `scale` sa #. sx) ^+^ (vmap (*beta) sy) 
                     where
-                       (^+^)   = szipWith_i (+) 
+                       (^+^)   = vzipWith (+) 
                        sa      = delay a 
                        sx      = from_vector x 
                        sy      = from_vector y 
@@ -181,9 +185,9 @@ gemv alpha beta a x y = (alpha `scale` sa #. sx) ^+^ (smap_i (*beta) sy)
 gemvt :: (Sparse rep ty a, U.Unbox a, Floating a) => a -> a -> SparseData rep ty a -> U.Vector a -> U.Vector a -> U.Vector a -> (SVector a, SVector a)
 gemvt alpha beta a x y z = (alpha `scale` sa #. sx, (beta `scale` a_tr #. sy) ^+^ sz) 
                     where 
-                        (^+^)          = szipWith_i (+)
+                        (^+^)          = vzipWith (+)
                         sa    = delay a 
-                        a_tr  = s_transpose sa 
+                        a_tr  = SGeneric.transpose sa 
                         sx    = from_vector x 
                         sy    = from_vector y 
                         sz    = from_vector z     
@@ -193,7 +197,7 @@ gemvt alpha beta a x y z = (alpha `scale` sa #. sx, (beta `scale` a_tr #. sy) ^+
 gesummv :: (Sparse rep ty a, U.Unbox a, Floating a) => a -> a -> SparseData rep ty a -> SparseData rep ty a -> U.Vector a -> SVector a 
 gesummv alpha beta a b x = (alpha `scale` a #. sx) ^+^ (beta `scale` b #. sx)
                     where 
-                        (^+^)          = szipWith_i (+)
+                        (^+^)          = vzipWith (+)
                         sx = from_vector x 
 
 
@@ -201,11 +205,11 @@ gesummv alpha beta a b x = (alpha `scale` a #. sx) ^+^ (beta `scale` b #. sx)
 trilazy :: (Sparse rep ty a, U.Unbox a, Floating a) => SparseData rep ty a -> SparseData rep ty a -> U.Vector a -> U.Vector  a -> SVector a
 trilazy u_mat y_mat u y = sy ^-^ (sy_mat #. (u_mat_tr #. su)) ^-^ (su_mat #. (y_mat_tr #. su))
                     where 
-                        (^-^) = szipWith_i (-)
+                        (^-^) = vzipWith (-)
                         sy_mat = delay y_mat 
                         su_mat = delay u_mat 
-                        u_mat_tr = s_transpose su_mat
-                        y_mat_tr = s_transpose sy_mat
+                        u_mat_tr = SGeneric.transpose su_mat
+                        y_mat_tr = SGeneric.transpose sy_mat
                         sy       = from_vector y 
                         su       = from_vector u 
 
@@ -236,10 +240,10 @@ cg !iters !z !a !x =
                                         !beta      = new_d / d  
                                         !new_p     = new_r ^+^ (beta .* p) 
                                     in go a new_z x new_d new_p new_r (i + 1)
-        (<.>) v1 v2   = sum_i $ szipWith_i (*) v1 v2 
-        (^+^)         = szipWith_i (+)
-        (^-^)         = szipWith_i (-)  
-        (.*) c        = smap_i (*c)
+        (<.>) v1 v2   = vsum $ vzipWith (*) v1 v2 
+        (^+^)         = vzipWith (+)
+        (^-^)         = vzipWith (-)  
+        (.*) c        = vmap (*c)
 
 
 main :: IO ()
