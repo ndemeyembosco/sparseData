@@ -4,7 +4,7 @@
            , AllowAmbiguousTypes, ScopedTypeVariables 
            , UndecidableInstances, DataKinds #-}
 
-module SGeneric where 
+module Data.Matrix.Generic.Generic where 
 
 import qualified Data.Vector as VU 
 import qualified Data.Vector.Unboxed as U  

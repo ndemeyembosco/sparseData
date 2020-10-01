@@ -7,12 +7,12 @@
            , ScopedTypeVariables #-}
 
 
-module UCSC where 
+module Data.Matrix.Sparse.CSC where 
 
-import qualified UCOO as O 
+import qualified Data.Matrix.Sparse.COO as O 
 import qualified UDNS as D 
 import qualified Data.Vector.Unboxed as U 
-import SGeneric 
+import Data.Matrix.Generic 
 
 
 

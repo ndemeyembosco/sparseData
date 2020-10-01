@@ -9,12 +9,12 @@
 
 
 
-module UDNS where 
+module Data.Matrix.Dense.DENSE where 
 
 import qualified Data.Vector.Unboxed as U 
-import qualified UCOO as O 
+import qualified Data.Matrix.Sparse.COO as O 
 
-import SGeneric 
+import Data.Matrix.Generic 
 
 data DNS 
 instance (U.Unbox e, Num e, Eq e) => Sparse DNS U e where

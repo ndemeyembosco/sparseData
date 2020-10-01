@@ -7,13 +7,13 @@
            , ScopedTypeVariables, Strict, StrictData #-}
 
 
-module UCSR where 
+module Data.Matrix.Sparse.CSR where 
 
 import qualified Data.Vector.Unboxed as U 
 
 
-import SGeneric 
-import qualified UCOO as O 
+import Data.Matrix.Generic 
+import qualified Data.Matrix.Sparse.COO as O 
 
 
 

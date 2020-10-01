@@ -1,5 +1,5 @@
-# nasHSpar
+# SparseBlas 
 
-### A Haskell library for sparse data computations
+### A Haskell library for sparse blas computations
 
 

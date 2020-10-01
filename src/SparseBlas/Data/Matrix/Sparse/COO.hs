@@ -8,11 +8,11 @@
            , UndecidableInstances, DataKinds, Strict, StrictData #-}
 
 
-module UCOO where 
+module Data.Matrix.Sparse.COO where 
 
 import qualified Data.Vector.Unboxed as U 
 
-import SGeneric 
+import Data.Matrix.Generic 
 
 -- data U
 --------------- Unboxed --------------------
