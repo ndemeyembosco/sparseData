@@ -4,10 +4,11 @@
            , AllowAmbiguousTypes, ScopedTypeVariables 
            , UndecidableInstances, DataKinds #-}
 
-module SparseBlas.Data.Matrix.Generic.Generic where 
+module SparseBlas.Data.Matrix.Parallel.Generic.Generic where 
 
-import qualified Data.Vector as VU 
-import qualified Data.Vector.Unboxed as U  
+import qualified Data.Vector as V 
+import Control.Parallel.Strategies ( NFData, using )
+import Data.Vector.Strategies ( parVector )
 import Prelude hiding (map, zipWith)
 
 
@@ -16,52 +17,52 @@ data RepIndex = U | D
 type SVector a = (Int -> a, Int) 
 
 
-to_vector ::U.Unbox a => SVector a -> U.Vector a 
-to_vector (f, !len) = U.generate len f 
+to_vector :: NFData a => SVector a -> V.Vector a 
+to_vector (f, !len) = (V.generate len f) `using` (parVector 2)
 
 
-from_vector :: U.Unbox a => U.Vector a -> SVector a 
-from_vector !vec =  let len = U.length vec in ((U.!) vec, len)
+from_vector :: NFData a => V.Vector a -> SVector a 
+from_vector !vec =  let len = V.length vec in ((V.!) vec, len)
 
 
-vnull :: U.Unbox a => SVector a -> Bool 
+vnull ::  NFData a => SVector a -> Bool 
 vnull  = (== 0) . snd  
 
-vmap :: U.Unbox a => (a -> b) -> SVector a -> SVector b
+vmap ::  NFData a => (a -> b) -> SVector a -> SVector b
 vmap f (g, !len) = (f . g, len)
 
 
 
 
-vzipWith :: (U.Unbox a, U.Unbox a, U.Unbox c) 
+vzipWith :: (NFData a, NFData a, NFData c) 
          => (a -> b -> c) -> SVector a -> SVector b -> SVector c 
 vzipWith f (g, !len1) (h, !len2) = (\i -> f (g i) (h i), len1) 
 
-(!+!) :: (U.Unbox a, Num a) 
+(!+!) :: (NFData a, Num a) 
       =>  SVector a -> SVector a -> SVector a  
 (!+!)  = vzipWith (+)
 
-(!-!) :: (U.Unbox a, Num a) 
+(!-!) :: (NFData a, Num a) 
       =>  SVector a -> SVector a -> SVector a 
 (!-!)  = vzipWith (-)
 
-(!*!) :: (U.Unbox a, Num a) => a -> SVector a -> SVector a 
+(!*!) :: (NFData a, Num a) => a -> SVector a -> SVector a 
 (!*!) x = vmap (* x) 
 
-vsum :: (U.Unbox a, Num a) => SVector a -> a 
-vsum (f, !len) = U.foldr' (\i n -> n + (f i)) 0 $ U.enumFromN 0 (len - 1) 
+vsum :: (NFData a, Num a) => SVector a -> a 
+vsum (f, !len) = V.foldr' (\i n -> n + (f i)) 0 $ V.enumFromN 0 (len - 1) -- add parallelism 
 
-(!.!) :: (U.Unbox a, Num a) => SVector a -> SVector a -> a 
+(!.!) :: (NFData a, Num a) => SVector a -> SVector a -> a 
 (!.!) v1 = vsum . vzipWith (*) v1 
 
 
-veq :: (U.Unbox a, Num a, Eq a) => SVector a -> SVector a -> Bool 
-veq !vec1 !vec2 = U.foldr (&&) True $! U.zipWith 
+veq :: (NFData a, Num a, Eq a) => SVector a -> SVector a -> Bool 
+veq !vec1 !vec2 = V.foldr (&&) True $! V.zipWith 
                                      (==) (to_vector vec1) (to_vector vec2)
 
 
 
-class (U.Unbox e, Num e, Eq e) => Sparse r (ty :: RepIndex) e where 
+class (NFData e, Num e, Eq e) => Sparse r (ty :: RepIndex) e where 
     data SparseData r (ty :: RepIndex) e :: * 
     s_index   :: SparseData r ty e -> (Int, Int) -> e 
     s_dims    :: SparseData r ty e -> (Int, Int) 
@@ -71,20 +72,20 @@ class (U.Unbox e, Num e, Eq e) => Sparse r (ty :: RepIndex) e where
 
 class (Sparse r D e, Sparse r U e) => Undelay r e where 
     s_undelay :: SparseData r D e -> SparseData r U e 
-    non_zeros :: SparseData r U e      -> U.Vector e 
+    non_zeros :: SparseData r U e      -> V.Vector e 
     
 
 
 
-instance (U.Unbox e, Num e, Eq e) => Sparse r D e where 
+instance (NFData e, Num e, Eq e) => Sparse r D e where 
     data SparseData r D e         = SDelayed (Int, Int) ((Int, Int) -> e) 
     s_index (SDelayed _ f) (!r, !c) = f (r, c) 
     s_dims (SDelayed (!w, !h) _)    = (w, h) 
-    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = ((VU.!) part_sums, len)
+    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = ((V.!) part_sums, len)
        where 
-         r_funcs   = VU.map (\ri -> ((curry m_index_f) ri, w)) 
-                           $ VU.enumFromN 0 h   
-         part_sums = VU.map (\(g, w) -> (g, w) !.! v) r_funcs
+         r_funcs   = V.map (\ri -> ((curry m_index_f) ri, w)) 
+                           $ V.enumFromN 0 h   
+         part_sums = V.map (\(g, w) -> (g, w) !.! v) r_funcs
 
 
 
@@ -100,11 +101,11 @@ instance (U.Unbox e, Num e, Eq e) => Sparse r D e where
 --            vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
 
 
-delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
+delay :: (Sparse r ty e) => SparseData r ty e -> SparseData r D e 
 delay arr = SDelayed (s_dims arr) (s_index arr)
 
 
-transpose :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e
+transpose :: (Sparse r ty e) => SparseData r ty e -> SparseData r D e
 transpose mat = let 
                     (w, h) = s_dims mat 
                     new_index_func m (r, c) = s_index m (c, r)
@@ -125,7 +126,7 @@ manifest_convert  = s_undelay . convert . delay
 
 
 empty :: (Sparse r ty a, Undelay r a) => SparseData r ty a -> Bool 
-empty mat = (0, 0) == (s_dims mat) || (U.null $ non_zeros $ s_undelay dmat)
+empty mat = (0, 0) == (s_dims mat) || (V.null $ non_zeros $ s_undelay dmat)
      where 
        dmat = delay mat 
 

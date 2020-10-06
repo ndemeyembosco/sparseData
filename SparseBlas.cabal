@@ -82,7 +82,9 @@ library
   build-depends:       base ^>=4.13.0.0, 
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1
+                       vector ^>=0.12.1.1,
+                       vector-strategies,
+                       parallel 
 
   -- Directories containing source files.
   hs-source-dirs:      src
@@ -125,7 +127,54 @@ executable SparseBlas
   build-depends:       base ^>=4.13.0.0, 
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1
+                       vector ^>=0.12.1.1,
+                       vector-strategies,
+                       parallel
+
+  -- Directories containing source files.
+  hs-source-dirs:      src 
+
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+
+executable SparseBlas-par
+  -- .hs or .lhs file containing the Main module.
+  main-is:             Main.hs
+
+  -- Modules included in this executable, other than Main.
+  other-modules:       SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       SparseBlas.Data.Matrix.Parallel.Generic.Generic,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.ELL
+
+  -- LANGUAGE extensions used by modules in this package.
+  other-extensions:    GADTs, 
+                       ViewPatterns, 
+                       BangPatterns, 
+                       DataKinds, 
+                       TypeFamilies, 
+                       MultiParamTypeClasses, 
+                       FlexibleInstances, 
+                       RankNTypes, 
+                       FlexibleContexts, 
+                       EmptyDataDecls, 
+                       AllowAmbiguousTypes, 
+                       UndecidableInstances, 
+                       ScopedTypeVariables, 
+                       Strict, 
+                       StrictData, 
+                       InstanceSigs
+
+  -- Other library packages from which modules are imported.
+  build-depends:       base ^>=4.13.0.0, 
+                       parsec ^>=3.1.14.0, 
+                       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       vector-strategies,
+                       parallel
 
   -- Directories containing source files.
   hs-source-dirs:      src 
@@ -168,6 +217,46 @@ test-suite SparseBlas-test
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
                        QuickCheck ^>=2.14,
+                       SparseBlas
+
+
+test-suite SBlasTestP 
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/tests/Test/SparseBlas/Parallel,
+                       testsuite/tests/Test,
+                       src 
+
+  main-is:             PCheck.hs 
+
+  -- The entrypoint to the test suite.
+  ghc-options: -threaded -eventlog -rtsopts +RTS -N4  -RTS -O2 -main-is PCheck.hs -o pcheck 
+
+  other-modules:       SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       SparseBlas.Data.Matrix.Parallel.Generic.Generic,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
+                       SparseBlas.Parallel.Generic.Generic,
+                       SparseBlas.Parallel.Sparse.COO,
+                       SparseBlas.Parallel.Sparse.CSC,
+                       SparseBlas.Parallel.Sparse.CSR,
+                       SparseBlas.Parallel.Sparse.ELL,
+                       SparseBlas.Parallel.Dense.DENSE 
+
+  -- Test dependencies.
+  build-depends:       base ^>=4.13.0.0, 
+                       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       QuickCheck ^>=2.14,
+                       parallel,
+                       vector-strategies,
                        SparseBlas
 
 

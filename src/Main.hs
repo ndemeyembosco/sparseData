@@ -10,7 +10,8 @@ module Main where
 import qualified Data.Vector.Unboxed as U  
 import           Text.Parsec.String     (Parser, parseFromFile)
 -- import SparseData
-import SparseBlas.Data.Matrix.Generic.Generic as SGeneric 
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Sparse((#.), SparseData), SVector, vmap, vzipWith, vsum ) 
 
 
 
