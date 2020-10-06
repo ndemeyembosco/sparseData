@@ -4,13 +4,11 @@
            , AllowAmbiguousTypes, ScopedTypeVariables 
            , UndecidableInstances, DataKinds #-}
 
-module Data.Matrix.Generic.Generic where 
+module SparseBlas.Data.Matrix.Generic.Generic where 
 
 import qualified Data.Vector as VU 
 import qualified Data.Vector.Unboxed as U  
-import Control.Monad 
 import Data.Maybe (maybe, isJust)
-import Data.Functor.Identity 
 import qualified Data.Map as M
 import Prelude hiding (map, zipWith)
 

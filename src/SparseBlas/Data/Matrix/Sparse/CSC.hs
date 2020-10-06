@@ -7,12 +7,26 @@
            , ScopedTypeVariables #-}
 
 
-module Data.Matrix.Sparse.CSC where 
+module SparseBlas.Data.Matrix.Sparse.CSC where 
 
-import qualified Data.Matrix.Sparse.COO as O 
-import qualified UDNS as D 
+import qualified SparseBlas.Data.Matrix.Sparse.COO as O 
+import qualified SparseBlas.Data.Matrix.Dense.DENSE as D 
 import qualified Data.Vector.Unboxed as U 
-import Data.Matrix.Generic 
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Undelay(..),
+      Sparse(s_dims, s_index, SparseData),
+      SparseData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      manifest_convert,
+      empty,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale )
 
 
 
@@ -72,7 +86,7 @@ instance (Eq (SparseData CSC U e), Undelay CSC e) => Eq (SparseData CSC D e) whe
 
 
 instance (Show e, Undelay CSC e, Sparse CSC ty e) => Show (SparseData CSC ty e) where 
-  show arr = let darr = UCSC.delay arr in 
+  show arr = let darr = SparseBlas.Data.Matrix.Sparse.CSC.delay arr in 
               case s_undelay darr of 
                 CSC offs rows vals h w ->  unlines ["CSC", "\n"
                                                         , "________"

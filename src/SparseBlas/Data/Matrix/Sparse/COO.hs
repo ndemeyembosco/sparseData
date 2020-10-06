@@ -8,11 +8,25 @@
            , UndecidableInstances, DataKinds, Strict, StrictData #-}
 
 
-module Data.Matrix.Sparse.COO where 
+module SparseBlas.Data.Matrix.Sparse.COO where 
 
 import qualified Data.Vector.Unboxed as U 
+import Prelude hiding (zipWith)
 
-import Data.Matrix.Generic 
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Undelay(..),
+      Sparse(s_dims, s_index, SparseData),
+      SparseData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      empty,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale )
 
 -- data U
 --------------- Unboxed --------------------
@@ -52,7 +66,7 @@ instance (Undelay COO e) => Eq (SparseData COO U e) where
             v_vec        = vals_vec mat 
             and_v  l     = U.foldr (+) 0 l   
             mat          = let 
-                             (interm :: SparseData COO D e) =  UCOO.zipWith (\x y -> 
+                             (interm :: SparseData COO D e) =  SparseBlas.Data.Matrix.Sparse.COO.zipWith (\x y -> 
                                                                           if x == y 
                                                                           then fromInteger 1 
                                                                           else 0) arr1 arr2
@@ -65,7 +79,7 @@ instance (Undelay COO e, Eq (SparseData COO U e)) => Eq (SparseData COO D e) whe
     
 
 instance (Show e, Undelay COO e, Sparse COO ty e) => Show (SparseData COO ty e) where 
-  show arr = let darr = UCOO.delay arr in 
+  show arr = let darr = SparseBlas.Data.Matrix.Sparse.COO.delay arr in 
              case s_undelay darr of 
                COO vs w h ->  unlines ["COO", "\n"
                                             , "________"

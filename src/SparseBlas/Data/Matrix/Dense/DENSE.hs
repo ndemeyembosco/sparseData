@@ -9,12 +9,25 @@
 
 
 
-module Data.Matrix.Dense.DENSE where 
+module SparseBlas.Data.Matrix.Dense.DENSE where 
 
 import qualified Data.Vector.Unboxed as U 
-import qualified Data.Matrix.Sparse.COO as O 
+import qualified SparseBlas.Data.Matrix.Sparse.COO as O 
 
-import Data.Matrix.Generic 
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Undelay(..),
+      Sparse(s_dims, s_index, SparseData),
+      SparseData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      empty,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale )
 
 data DNS 
 instance (U.Unbox e, Num e, Eq e) => Sparse DNS U e where
@@ -43,7 +56,7 @@ instance (Eq (SparseData DNS U e), Undelay DNS e) => Eq (SparseData DNS D e) whe
 
 
 instance (Show e, Undelay DNS e, Sparse DNS ty e) => Show (SparseData DNS ty e) where 
-  show arr = let darr = UDNS.delay arr in 
+  show arr = let darr = SparseBlas.Data.Matrix.Dense.DENSE.delay arr in 
               case s_undelay darr of 
                 DNS vals h w ->  unlines ["DENSE", "\n"
                                                         , "________"

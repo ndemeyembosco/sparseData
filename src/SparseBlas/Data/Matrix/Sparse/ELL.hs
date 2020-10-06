@@ -7,12 +7,26 @@
            , UndecidableInstances, DataKinds, Strict, StrictData #-}
 
 
-module Data.Matrix.Sparse.ELL where 
+module SparseBlas.Data.Matrix.Sparse.ELL where 
 
 import qualified Data.Vector.Unboxed as U 
 
-import Data.Matrix.Generic 
-import qualified Data.Matrix.Sparse.COO as O
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Undelay(..),
+      Sparse(s_dims, s_index, SparseData),
+      SparseData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      manifest_convert,
+      empty,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale ) 
+import qualified SparseBlas.Data.Matrix.Sparse.COO as O
 
 
 
@@ -64,7 +78,7 @@ instance (Eq (SparseData ELL U e), Undelay ELL e) => Eq (SparseData ELL D e) whe
 
 
 instance (Show e, Undelay ELL e, Sparse ELL ty e) => Show (SparseData ELL ty e) where 
-  show arr = let darr = UELL.delay arr in 
+  show arr = let darr = SparseBlas.Data.Matrix.Sparse.ELL.delay arr in 
               case s_undelay darr of 
                 ELL max_elem cols vals h w ->  unlines ["ELL", "\n"
                                                         , "________"

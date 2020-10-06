@@ -7,13 +7,27 @@
            , ScopedTypeVariables, Strict, StrictData #-}
 
 
-module Data.Matrix.Sparse.CSR where 
+module SparseBlas.Data.Matrix.Sparse.CSR where 
 
 import qualified Data.Vector.Unboxed as U 
 
 
-import Data.Matrix.Generic 
-import qualified Data.Matrix.Sparse.COO as O 
+import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+    ( Undelay(..),
+      Sparse(s_dims, s_index, SparseData),
+      SparseData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      manifest_convert,
+      empty,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale ) 
+import qualified SparseBlas.Data.Matrix.Sparse.COO as O 
 
 
 
@@ -71,7 +85,7 @@ instance (Eq (SparseData CSR U e), Undelay CSR e) => Eq (SparseData CSR D e) whe
 
 
 instance (Show e, Undelay CSR e, Sparse CSR ty e) => Show (SparseData CSR ty e) where 
-  show arr = let darr = UCSR.delay arr in 
+  show arr = let darr = SparseBlas.Data.Matrix.Sparse.CSR.delay arr in 
               case s_undelay darr of 
                 CSR offs cols vals h w ->  unlines ["CSR", "\n"
                                                         , "________"
