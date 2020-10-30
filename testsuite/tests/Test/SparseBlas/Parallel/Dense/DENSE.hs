@@ -41,9 +41,9 @@ test_dense = do
 
     print " r (s A) == (r s) A: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_const_mul_prop :: Double 
-                                    -> Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_assoc_const_mul_prop :: Int 
+                                    -> Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "(A + B) == (B + A): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
@@ -52,9 +52,9 @@ test_dense = do
 
     print "r (A + B) = r A + r B: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_distr_const_mul_prop :: Double 
-                                    -> SparseData D.DNS D Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_distr_const_mul_prop :: Int  
+                                    -> SparseData D.DNS D Int  
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "(A + B) + C == A + (B + C): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 

@@ -5,7 +5,7 @@ module BenchMark where
 import Criterion.Main 
 import Criterion.Types 
 import Kernels
-import Util.DataLoaderSmall
+import Util.DataLoader
 import qualified Data.Vector.Unboxed as U 
 import qualified Data.Map.Strict as M
 import Util.Parser.MMParser 
@@ -15,9 +15,10 @@ import BenchMark.SparseBlas.Sparse.Big.COO
 import BenchMark.SparseBlas.Sparse.Big.CSR 
 import BenchMark.SparseBlas.Sparse.Big.ELL 
 import BenchMark.SparseBlas.Sparse.Big.CSC
+import BenchMark.SparseBlas.Dense.Big.DENSE
 import Data.Maybe
+import Control.DeepSeq (deepseq)
 
--- hs = undefined 
 
 
 sparse_matrify :: M.Map String MMExchange 
@@ -26,11 +27,15 @@ sparse_matrify dict = M.map mm_to_s_data dict
 
 config = defaultConfig 
 
-hs = undefined 
+hs = main  
 
 main = do
-      bench_coo_big  
-      bench_csr_big  
-      bench_ell_big 
-      bench_csc_big  
-      return ()
+      print "about to benchmark serial dns"
+      vec <- bench_dns_big  
+      -- bench_csr_big  
+      
+      -- bench_ell_big 
+      -- bench_csc_big  
+      let v = deepseq vec vec  
+      print $ U.length v
+      return () 

@@ -5,6 +5,7 @@ module Util.DataLoaderSmall where
 import Util.Parser.MMParser 
 import qualified Data.Map.Strict as M 
 import qualified Data.Vector.Unboxed as U 
+import qualified Data.Vector as V 
 import System.Directory 
 import Control.Monad 
 import Data.Maybe 
@@ -37,6 +38,9 @@ load_data dir  = do
 gen_vec :: Int -> U.Vector Double
 gen_vec n = U.replicate n 1.0  
 
+gen_vec_boxed :: Int -> V.Vector Double 
+gen_vec_boxed n = V.replicate n 1.0 
+
 mats_with_doubles = [ "tub100"
                     , "pores_1"
                     , "space_station_1"
@@ -56,7 +60,7 @@ get_data_with_double l dict = map (\s -> M.lookup s dict) l
 
 matrix_data :: M.Map String MMExchange -> M.Map String MMExchange -> IO (M.Map String MMExchange, M.Map String MMExchange)
 matrix_data small_ms big_ms  = do 
-        small_mdata <- load_data "/home/users/ndemeye/Documents/nasHSpar/src/smaller_matrices"
+        small_mdata <- load_data "resources/smaller_matrices"
         let Just (head -> tub100_data)  =  M.lookup "tub100" small_mdata
         let Just (head -> pores_1_data) =  M.lookup "pores_1" small_mdata
         let Just (head -> lf10_data)    =  M.lookup "LF10" small_mdata

@@ -5,6 +5,7 @@ module Util.DataLoader where
 import Util.Parser.MMParser 
 import qualified Data.Map.Strict as M 
 import qualified Data.Vector.Unboxed as U 
+import qualified Data.Vector as B 
 import System.Directory 
 import Control.Monad 
 import Data.Maybe 
@@ -14,6 +15,7 @@ type MatrixData = M.Map String [MMExchange]
 
 load_data :: FilePath -> IO MatrixData
 load_data dir  = do 
+   print dir 
    mat_dirs <- listDirectory dir
    matrices <- forM mat_dirs $ \n -> do 
                 if n == ".DS_Store" then return []
@@ -35,6 +37,9 @@ load_data dir  = do
 gen_vec :: Int -> U.Vector Double
 gen_vec n = U.replicate n 1.0  
 
+gen_vec_boxed :: Int -> B.Vector Double 
+gen_vec_boxed n = B.replicate n 1.0 
+
 mats_with_doubles = [ "tub100"
                     , "pores_1"
                     , "space_station_1"
@@ -52,37 +57,38 @@ get_data_with_double l dict = map (\s -> M.lookup s dict) l
 
 
 
-matrix_data :: M.Map String MMExchange -> M.Map String MMExchange -> IO (M.Map String MMExchange, M.Map String MMExchange)
+matrix_data :: M.Map String MMExchange -> M.Map String MMExchange -> IO (M.Map String MMExchange)
 matrix_data small_ms big_ms  = do 
 
-        big_mdata <- load_data "/home/users/ndemeye/Documents/nasHSpar/src/bigger_matrices"
-        let Just (head -> rdb200)       =  M.lookup "rdb200" big_mdata
-        let Just (head -> rdb450)    =  M.lookup "rdb450" big_mdata
-        let Just (head -> rdb800l)       =  M.lookup "rdb800l" big_mdata
-        let m6 = M.insert "rdb200" rdb200 big_ms
-        let m7 = M.insert "rdb450" rdb450 m6
-        let m8 = M.insert "rdb800l" rdb800l m7 
-        let Just (head -> bcsstk08)  = M.lookup "bcsstk08" big_mdata
-        let Just (head -> bcsstk09)  = M.lookup "bcsstk09" big_mdata
-        let Just (head -> bcsstk09)  = M.lookup "bcsstk09" big_mdata
-        let Just (head -> bcsstk10)  = M.lookup "bcsstk10" big_mdata
-        let Just (head -> bcsstk11)  = M.lookup "bcsstk11" big_mdata
-        let Just (head -> bcsstk12)  = M.lookup "bcsstk12" big_mdata
-        let Just (head -> bcsstk13)  = M.lookup "bcsstk13" big_mdata
-        let Just (head -> bcsstk14)  = M.lookup "bcsstk14" big_mdata
-        let Just (head -> bcsstk15)  = M.lookup "bcsstk15" big_mdata
-        let Just (head -> bcsstk16)  = M.lookup "bcsstk16" big_mdata
-        let Just (head -> bcsstk17)  = M.lookup "bcsstk17" big_mdata
-        let Just (head -> bcsstk18)  = M.lookup "bcsstk18" big_mdata
-        let m1 = M.insert "bcsstk08" bcsstk08 big_ms 
-        let m2 = M.insert "bcsstk09" bcsstk09 m1
-        let m3 = M.insert "bcsstk10" bcsstk10 m2 
-        let m4 = M.insert "bcsstk11" bcsstk11 m3
-        let m5 = M.insert "bcsstk12" bcsstk12 m4 
-        let m6 = M.insert "bcsstk13" bcsstk13 m5
-        let m7 = M.insert "bcsstk14" bcsstk14 m6
-        let m8 = M.insert "bcsstk15" bcsstk15 m7
-        let m9 = M.insert "bcsstk16" bcsstk16 m8
-        let m10 = M.insert "bcsstk17" bcsstk17 m9
-        let m11 = M.insert "bcsstk18" bcsstk18 m10 
-        return (M.empty, m11) 
+        big_mdata <- load_data "resources/bigger_matrices/current"
+        let Just (head -> asic_680k)   = M.lookup "ASIC_680k" big_mdata
+        let Just (head -> com_orkut)   = M.lookup "com-Orkut" big_mdata 
+        let Just (head -> ecology1)    = M.lookup "ecology1" big_mdata 
+        let Just (head -> europe_osm)  = M.lookup "europe_osm" big_mdata 
+        let Just (head -> rajat21)     = M.lookup "rajat21" big_mdata
+        let m1 = M.insert "asic_680k" asic_680k big_ms 
+        let m2 = M.insert "com_orkut" com_orkut m1 
+        let m3 = M.insert "ecology1" ecology1 m2 
+        let m4 = M.insert "europe_osm" europe_osm m3 
+        let m5 = M.insert "rajat21" rajat21 m4 
+        return m5  
+
+
+vec_data :: M.Map String (B.Vector Double)
+vec_data = M.fromList [
+            ("asic_680k"  , gen_vec_boxed 682862)
+         ,  ("com_orkut"  , gen_vec_boxed 3072441)
+         ,  ("ecology1"   , gen_vec_boxed 1000000)
+         ,  ("europe_osm" , gen_vec_boxed 50912018)
+         ,  ("rajat21"    , gen_vec_boxed 411676)
+         ]
+
+
+vec_data_u :: M.Map String (U.Vector Double)
+vec_data_u = M.fromList [
+            ("asic_680k"  , gen_vec 682862)
+         ,  ("com_orkut"  , gen_vec 3072441)
+         ,  ("ecology1"   , gen_vec 1000000)
+         ,  ("europe_osm" , gen_vec 50912018)
+         ,  ("rajat21"    , gen_vec 411676)
+         ]

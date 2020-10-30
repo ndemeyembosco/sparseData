@@ -37,42 +37,42 @@ test_dense = do
     print "testing DNS ... \n\n"
     print "undelay . delay = id : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_convert_test :: SparseData D.DNS U Double -> Bool)
+                    (s_convert_test :: SparseData D.DNS U Int -> Bool)
 
     print " r (s A) == (r s) A: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_const_mul_prop :: Double 
-                                    -> Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_assoc_const_mul_prop :: Int 
+                                    -> Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "(A + B) == (B + A): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_commut_add_prop :: SparseData D.DNS D Double 
-                                        -> SparseData D.DNS D Double -> Bool)
+                    (s_commut_add_prop :: SparseData D.DNS D Int 
+                                        -> SparseData D.DNS D Int -> Bool)
 
     print "r (A + B) = r A + r B: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_distr_const_mul_prop :: Double 
-                                    -> SparseData D.DNS D Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_distr_const_mul_prop :: Int 
+                                    -> SparseData D.DNS D Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "(A + B) + C == A + (B + C): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_add_prop :: SparseData D.DNS D Double 
-                                    -> SparseData D.DNS D Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_assoc_add_prop :: SparseData D.DNS D Int 
+                                    -> SparseData D.DNS D Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "A (w + v) = A w + A v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                (s_assoc_mult_vec_prop :: UVector.Vector Double 
-                                    -> UVector.Vector Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                (s_assoc_mult_vec_prop :: UVector.Vector Int 
+                                    -> UVector.Vector Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "(A + B) v = A v + B v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_distr_add_mult_vec_prop :: UVector.Vector Double 
-                                    -> SparseData D.DNS D Double 
-                                    -> SparseData D.DNS D Double -> Bool)
+                    (s_distr_add_mult_vec_prop :: UVector.Vector Int 
+                                    -> SparseData D.DNS D Int 
+                                    -> SparseData D.DNS D Int -> Bool)
 
     print "A (a  u) = a  (A . u): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 

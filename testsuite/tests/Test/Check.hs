@@ -15,6 +15,8 @@ import SparseBlas.Dense.DENSE ( test_dense )
     
 
 
+
+
 main :: IO () 
 main = do 
  quickCheckWith (stdArgs {maxSuccess=1000}) 

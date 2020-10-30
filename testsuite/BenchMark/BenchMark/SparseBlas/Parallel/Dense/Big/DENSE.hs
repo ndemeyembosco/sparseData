@@ -1,27 +1,33 @@
 {-# LANGUAGE DataKinds, BangPatterns, ScopedTypeVariables #-}
 
-module BenchMark.SparseBlas.Dense.Big.DENSE where 
+module BenchMark.SparseBlas.Parallel.Dense.Big.DENSE where 
 
 import Criterion.Main 
 import Criterion.Types 
-import Kernels 
-import qualified Data.Vector.Unboxed as U 
+import BenchMark.SparseBlas.Parallel.PKernels
+import Util.DataLoader
+import qualified Data.Vector as U 
 import qualified Data.Map.Strict as M
 import Util.Parser.MMParser 
-import SparseBlas.Data.Matrix.Generic.Generic 
-import SparseBlas.Data.Matrix.Dense.DENSE 
+import SparseBlas.Data.Matrix.Parallel.Generic.Generic 
+import SparseBlas.Data.Matrix.Parallel.Sparse.COO 
+import SparseBlas.Data.Matrix.Parallel.Dense.DENSE
+import SparseBlas.Data.Matrix.Parallel.Sparse.CSR 
+import SparseBlas.Data.Matrix.Parallel.Sparse.ELL 
+import SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
 import Data.Maybe
-import Control.Monad.IO.Class 
-import Control.DeepSeq (deepseq)
 import System.Random 
+import Control.DeepSeq (deepseq)
 
-genRandMatrix :: (U.Unbox a, Random a) => Int -> Int -> IO (SparseData DNS U a)
+
+
+genRandMatrix :: Random a => Int -> Int -> IO (SparseData DNS U a)
 genRandMatrix width height = do 
     stdGen <- getStdGen 
     let rs = (U.fromList $ take (width * height) $ randoms stdGen)
     return $ DNS rs width height  
 
-genRandMatrices :: (U.Unbox a, Random a) => [(Int, Int)] -> IO [(SparseData DNS U a)]
+genRandMatrices :: Random a => [(Int, Int)] -> IO [(SparseData DNS U a)]
 genRandMatrices = mapM (\(x, y) -> genRandMatrix x y) 
 
 

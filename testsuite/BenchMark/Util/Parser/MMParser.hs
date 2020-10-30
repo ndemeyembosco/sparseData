@@ -3,6 +3,7 @@
 module Util.Parser.MMParser where 
 
 import qualified Data.Vector.Unboxed as U 
+import qualified Data.Vector as V 
 import System.Environment (getArgs)
 import System.Directory
 
@@ -12,7 +13,9 @@ import           Text.Parsec.Token
 import           Text.Parsec.Char 
 import           Text.Parsec.Combinator
 import           Text.Parsec.Language
+import qualified SparseBlas.Data.Matrix.Parallel.Generic.Generic as G 
 import SparseBlas.Data.Matrix.Generic.Generic hiding (map)
+import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O 
 import SparseBlas.Data.Matrix.Sparse.COO hiding (map)
 import           Text.Parsec.String     (Parser, parseFromFile)
 
@@ -128,6 +131,20 @@ mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries)
                                                entries)
                      , width=w
                      , height=h}
+
+
+
+mm_to_s_data_p :: MMExchange -> G.SparseData O.COO G.U Double 
+mm_to_s_data_p Empty = O.COO (V.fromList []) 0 0 
+mm_to_s_data_p (MMCOO (fromInteger -> w, fromInteger -> h, _) entries) 
+                   =  O.COO 
+                     {
+                       O.coo_vals= (V.fromList $ map (\(fromInteger -> i
+                                                    , fromInteger -> j
+                                                    , d) -> (d, i, j)) 
+                                               entries)
+                     , O.width=w
+                     , O.height=h}
 
 
 -- main :: IO () 
