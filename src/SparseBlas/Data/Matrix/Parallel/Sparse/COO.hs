@@ -14,6 +14,7 @@ import qualified Data.Vector as V
 import Control.Parallel.Strategies
 import Data.Vector.Strategies
 import Prelude hiding (zipWith)
+import Control.DeepSeq 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -38,8 +39,8 @@ data COO
 instance (NFData e, Num e, Eq e) => Sparse COO U e where 
     data SparseData COO U e   = COO 
                         {  coo_vals :: V.Vector (e, Int, Int)
-                           ,  width :: Int
-                           , height :: Int
+                           ,  width :: !Int
+                           , height :: !Int
                         }
     -- indexing is big o length of non zeros
     s_index (COO vals w h) (r, c) = els
@@ -48,6 +49,10 @@ instance (NFData e, Num e, Eq e) => Sparse COO U e where
                 Nothing -> 0 --error "index element non-existent"
                 Just (a1, _, _) -> a1
     s_dims (COO vals w h) = (w, h)
+
+
+instance NFData e => NFData (SparseData COO U e) where 
+  rnf (COO vals w h) = let ((), (), ()) = (rnf vals, rnf w, rnf h) in (COO vals w h) `seq` ()
     
 instance (NFData e, Num e, Eq e, Sparse COO D e, Sparse COO U e) => Undelay COO e where  
     s_undelay (SDelayed (h, w) func) = COO vals w h 
@@ -55,9 +60,9 @@ instance (NFData e, Num e, Eq e, Sparse COO D e, Sparse COO U e) => Undelay COO 
         vals_r r = (V.unfoldrN w (\c -> 
                                   if func (r, c) /= 0 
                                   then Just ((func (r,c), c), c + 1) 
-                                  else Nothing) 0) `using` (parVector 2)
-        rows     = parMap rpar (\r -> V.map (\(x, c) -> (x, r, c)) (vals_r r)) [0..h-1]
-        vals     = (V.concat rows) `using` (parVector 2)
+                                  else Nothing) 0) `using` (parVector 1)
+        rows     = parMap rseq (\r -> V.map (\(x, c) -> (x, r, c)) (vals_r r)) [0..h-1]
+        vals     = (V.concat rows) `using` (parVector 1)
     non_zeros (COO vals w h) = let (v, _, _) = V.unzip3 vals in v  
                       
 

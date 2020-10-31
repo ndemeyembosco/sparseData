@@ -12,6 +12,7 @@ module SparseBlas.Data.Matrix.Parallel.Sparse.ELL where
 import qualified Data.Vector as V 
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies
+import Control.DeepSeq 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -50,6 +51,9 @@ instance (NFData e, Num e, Eq e) => Sparse ELL U e where
                           Nothing      -> 0 
                           Just (_, a1) -> a1 
     s_dims (ELL _ _ _ h w) = (w, h)
+
+instance NFData e => NFData (SparseData ELL U e) where 
+  rnf (ELL max_e cols vals h w) = let ((), (), (), (), ()) = (rnf max_e, rnf cols, rnf vals, rnf h, rnf w) in (ELL max_e cols vals h w) `seq` () 
 
 instance (NFData e, Num e, Eq e, Sparse ELL D e, Sparse ELL U e) => Undelay ELL e where 
     s_undelay (SDelayed (h, w) func) = ELL r_max cols vals h w 

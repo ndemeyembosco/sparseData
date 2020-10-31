@@ -10,6 +10,7 @@
 module SparseBlas.Data.Matrix.Parallel.Sparse.CSR where 
 
 import qualified Data.Vector as V  
+import Control.DeepSeq 
 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
@@ -38,8 +39,8 @@ instance (NFData e, Num e, Eq e) => Sparse CSR U e where
     data instance SparseData CSR U e = CSR { row_offsets     :: V.Vector Int
                                           ,  col_index_csr   :: V.Vector Int
                                           ,  csr_vals        :: V.Vector e
-                                          ,  csr_height      :: Int
-                                          ,  csr_width       :: Int
+                                          ,  csr_height      :: !Int
+                                          ,  csr_width       :: !Int
                                           } 
     -- indexing is big o of maximum number of elements per row
     s_index (CSR row_offs col_index vals h w) (r, c) = el
@@ -56,6 +57,10 @@ instance (NFData e, Num e, Eq e) => Sparse CSR U e where
                                                Nothing -> 0 -- error index element non-existent 
                                                Just (_, a1)  -> a1  
     s_dims (CSR _ _ _ h w) = (w, h)
+
+
+instance NFData e => NFData (SparseData CSR U e) where 
+  rnf (CSR rows cols vals h w) = let ((), (), (), (), ()) = (rnf rows, rnf cols, rnf vals, rnf h, rnf w) in (CSR rows cols vals h w) `seq` ()
 
 instance (NFData e, Num e, Eq e, Sparse CSR D e, Sparse CSR U e) => Undelay CSR e where  
     s_undelay (SDelayed (h, w) func) = CSR r_offs cols vals h w 

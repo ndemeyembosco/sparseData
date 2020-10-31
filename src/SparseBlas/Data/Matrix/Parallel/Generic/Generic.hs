@@ -2,7 +2,7 @@
            , FlexibleInstances, BangPatterns, RankNTypes 
            , FlexibleContexts 
            , AllowAmbiguousTypes, ScopedTypeVariables 
-           , UndecidableInstances, DataKinds #-}
+           , UndecidableInstances, DataKinds, DeriveGeneric #-}
 
 module SparseBlas.Data.Matrix.Parallel.Generic.Generic where 
 
@@ -10,6 +10,7 @@ import qualified Data.Vector as V
 import Control.Parallel.Strategies ( NFData, using )
 import Data.Vector.Strategies ( parVector )
 import Prelude hiding (map, zipWith)
+import Control.DeepSeq 
 
 
 data RepIndex = U | D 
@@ -18,7 +19,7 @@ type SVector a = (Int -> a, Int)
 
 
 to_vector :: NFData a => SVector a -> V.Vector a 
-to_vector (f, !len) = (V.generate len f) `using` (parVector 2)
+to_vector (f, !len) = (V.generate len f) `using` (parVector 4)
 
 
 from_vector :: NFData a => V.Vector a -> SVector a 
@@ -83,9 +84,12 @@ instance (NFData e, Num e, Eq e) => Sparse r D e where
     s_dims (SDelayed (!w, !h) _)    = (w, h) 
     (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = ((V.!) part_sums, len)
        where 
-         r_funcs   = V.map (\ri -> ((curry m_index_f) ri, w)) 
-                           $ V.enumFromN 0 h   
-         part_sums = V.map (\(g, w) -> (g, w) !.! v) r_funcs
+         r_funcs   = (V.map (\ri -> ((curry m_index_f) ri, w)) 
+                           $ V.enumFromN 0 h) `using` parVector 4  
+         part_sums = (V.map (\(g, w) -> (g, w) !.! v) r_funcs) `using` parVector 4 
+
+instance (NFData (SparseData r D e)) where 
+    rnf (SDelayed (w, h) func) = let ( (), () ) = ( rnf w, rnf h ) in  (SDelayed (w, h) func) `seq` ()  
 
 
 

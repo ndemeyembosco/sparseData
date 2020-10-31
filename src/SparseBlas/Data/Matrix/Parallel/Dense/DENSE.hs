@@ -15,6 +15,7 @@ import qualified Data.Vector as V
 import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O 
 import Control.Parallel.Strategies ( using, NFData )
 import Data.Vector.Strategies (parVector )
+import Control.DeepSeq 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -44,7 +45,7 @@ instance (NFData e, Num e, Eq e, Sparse DNS D e, Sparse DNS U e) => Undelay DNS 
       where 
         vals = (V.unfoldrN (w * h) (\n -> let (r, c) =  n `divMod` w 
                                          in if r < h then Just (func (r, c), n+1)
-                                            else Nothing) 0) `using` (parVector 2)
+                                            else Nothing) 0) `using` (parVector 4) 
     non_zeros (DNS vals w h) = vals 
 
 
@@ -56,6 +57,9 @@ instance (Undelay DNS e) => Eq (SparseData DNS U e) where
 instance (Eq (SparseData DNS U e), Undelay DNS e) => Eq (SparseData DNS D e) where 
     arr1 == arr2 = (s_undelay arr1) == (s_undelay arr2)
 
+
+instance NFData e => NFData (SparseData DNS U e) where 
+    rnf (DNS vals w h) = let ((), (), ()) = (rnf vals, rnf w, rnf h) in (DNS vals w h) `seq` ()
 
 instance (Show e, Undelay DNS e, Sparse DNS ty e) => Show (SparseData DNS ty e) where 
   show arr = let darr = SparseBlas.Data.Matrix.Parallel.Dense.DENSE.delay arr in 

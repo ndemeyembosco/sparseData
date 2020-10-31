@@ -14,6 +14,7 @@ import qualified SparseBlas.Data.Matrix.Parallel.Dense.DENSE as D
 import qualified Data.Vector as V 
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies
+import Control.DeepSeq 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
     ( Undelay(..),
       Sparse(s_dims, s_index, SparseData),
@@ -55,6 +56,10 @@ instance (NFData e, Num e, Eq e) => Sparse CSC U e where
                                                      Nothing -> 0 
                                                      Just (_, a1) -> a1 
     s_dims (CSC _ _ _ h w) = (w, h)
+
+
+instance NFData e => NFData (SparseData CSC U e) where 
+  rnf (CSC cols rows vals h w) = let ((), (), (), (), ()) = (rnf cols, rnf rows, rnf vals, rnf h, rnf w) in (CSC cols rows vals h w) `seq` ()
 
 
 instance (NFData e, Num e, Eq e, Sparse CSC D e, Sparse CSC U e) => Undelay CSC e where  
