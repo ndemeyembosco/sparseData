@@ -14,6 +14,7 @@ import Data.Vector.Strategies ( parVector )
 import Prelude hiding (map, zipWith)
 import Control.DeepSeq 
 import GHC.Conc (numCapabilities)
+import GHC.Base (quotInt)
 import Data.Array.Repa.Eval (fillChunkedP)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -117,37 +118,14 @@ instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse r D e where
     {-# INLINE s_dims #-}
     s_dims (SDelayed (!w, !h) _)    = (w, h) 
     {-# INLINE (#.) #-}
-    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = (\i -> --let !ans = 
-                                                              ((VB.!) part_sums i) 
-                                                            --in ans `deepseq` ans
-                                                            , len)
+    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = (dots, len)
        where 
-         {-# INLINE r_funcs #-}
-         !r_funcs   = --let ans = 
-                        (VB.map (\ri -> ((curry m_index_f) ri, w)) 
-                                      $ VB.enumFromN 0 h) -- `using` (parVector numCapabilities) 
-                                      --in ans `deepseq` ans 
-         {-# INLINE part_sums #-}
-         !part_sums = --let ans = 
-                        (VB.map (\(g, w) -> (g, w) !.! v) r_funcs) -- `using` (parVector numCapabilities) -- use !.! or vdot?
-                                      --in ans `deepseq` ans 
+           {-# INLINE dots #-}
+           dots !ri = let g = (curry m_index_f) ri in (g, w) !.! v 
 
 instance (NFData (SparseData r D e)) where 
     {-# INLINE rnf #-}
     rnf (SDelayed (w, h) func) = let ( (), () ) = ( rnf w, rnf h ) in  (SDelayed (w, h) func) `seq` ()  
-
-
-
---instance (Eq e, Num e, Sparse r U e
---              , Sparse r2 U e, r ~ r2, U.Unbox e) => Eq (SparseData COO U e) where 
---    arr1 == arr2 = (and_v v_vec) == (U.length v_vec)    
---           where 
---            v_vec        = vals_vec mat
---            and_v  l     = U.foldr (+) 0 l  
---            darr1   = delay arr1   
---            darr2   = delay arr2
---            mat          = s_undelay 0 $ zipWith (\x y -> if x == y then fromInteger 1 else 0) darr1 darr2  
---            vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
 
 
 delay :: (Sparse r ty e) => SparseData r ty e -> SparseData r D e 
@@ -205,18 +183,6 @@ zipWith f !arr1 !arr2 = SDelayed (w1, h1) get
      SDelayed _ f2        = delay arr2
      {-# INLINE get #-}
      get val              = f (f1 val) (f2 val)
-
--- (#*) :: (Sparse r ty a, Num a) 
---     => SparseData r ty a -> SparseData r ty a -> SparseData r D a
--- (#*) !a_mat !b_mat = SDelayed (a_w, b_h) get 
---   where 
---     mat1@(SDelayed  (a_w, a_h) f1) = delay a_mat 
---     mat2@(SDelayed  (b_w, b_h) f2) = delay b_mat 
---     get (i, j) = VU.foldr (\e prev -> e + prev) (0) 
---                              $ VU.map (\k -> 
---                                         (*) (f1 (i, k)) 
---                                             (f2 (k, j))) 
---                                              (VU.enumFromN 0 (a_w - 1)) 
 
 
 
