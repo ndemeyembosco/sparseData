@@ -72,11 +72,19 @@ vzipWith f (g, !len1) (h, !len2) = (\i -> f (g i) (h i), len1)
 
 vsum :: (NFData a, Num a, V.Unbox a) => SVector a -> a 
 {-# INLINE vsum #-}
-vsum (f, !len) = V.foldr' (\i n -> n + (f i)) 0 $ V.enumFromN 0 (len - 1) -- add parallelism 
+vsum (f, !len) = V.foldl' (\n i -> let !m = f i in n + m) 0 $ V.enumFromN 0 (len - 1) -- add parallelism 
+
+vsum' :: (NFData a, Num a, V.Unbox a) => SVector a -> a 
+{-# INLINE vsum' #-}
+vsum' v@(f, !len) = let !v1 = to_vector v in  v1 `deepseq` (V.sum v1) 
 
 (!.!) :: (NFData a, Num a, V.Unbox a) => SVector a -> SVector a -> a 
 {-# INLINE (!.!) #-}
 (!.!) v1 = vsum . vzipWith (*) v1 
+
+vdot :: (NFData a, Num a, V.Unbox a) => SVector a -> SVector a -> a 
+{-# INLINE vdot #-}
+vdot v1 = vsum' . vzipWith (*) v1 
 
 
 veq :: (NFData a, Num a, Eq a, V.Unbox a) => SVector a -> SVector a -> Bool 
@@ -109,13 +117,20 @@ instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse r D e where
     {-# INLINE s_dims #-}
     s_dims (SDelayed (!w, !h) _)    = (w, h) 
     {-# INLINE (#.) #-}
-    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = (\i -> let !ans = ((VB.!) part_sums i) in ans `deepseq` ans, len)
+    (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = (\i -> --let !ans = 
+                                                              ((VB.!) part_sums i) 
+                                                            --in ans `deepseq` ans
+                                                            , len)
        where 
          {-# INLINE r_funcs #-}
-         r_funcs   = (VB.map (\ri -> ((curry m_index_f) ri, w)) 
-                           $ VB.enumFromN 0 h)  
+         !r_funcs   = --let ans = 
+                        (VB.map (\ri -> ((curry m_index_f) ri, w)) 
+                                      $ VB.enumFromN 0 h) -- `using` (parVector numCapabilities) 
+                                      --in ans `deepseq` ans 
          {-# INLINE part_sums #-}
-         part_sums = (VB.map (\(g, w) -> (g, w) !.! v) r_funcs) 
+         !part_sums = --let ans = 
+                        (VB.map (\(g, w) -> (g, w) !.! v) r_funcs) -- `using` (parVector numCapabilities) -- use !.! or vdot?
+                                      --in ans `deepseq` ans 
 
 instance (NFData (SparseData r D e)) where 
     {-# INLINE rnf #-}

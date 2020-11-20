@@ -79,7 +79,7 @@ library
                        InstanceSigs
 
   -- Other library packages from which modules are imported.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
@@ -87,7 +87,7 @@ library
                        parallel 
 
   -- Directories containing source files.
-  hs-source-dirs:      src
+  hs-source-dirs:      src, util 
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
@@ -124,7 +124,7 @@ executable SparseBlas
                        InstanceSigs
 
   -- Other library packages from which modules are imported.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
@@ -132,7 +132,7 @@ executable SparseBlas
                        parallel
 
   -- Directories containing source files.
-  hs-source-dirs:      src 
+  hs-source-dirs:      src, util 
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
@@ -169,15 +169,17 @@ executable SparseBlas-par
                        InstanceSigs
 
   -- Other library packages from which modules are imported.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
                        vector-strategies,
-                       parallel
+                       parallel,
+                       deepseq,
+                       repa ^>= 3.4.1.4
 
   -- Directories containing source files.
-  hs-source-dirs:      src 
+  hs-source-dirs:      src, util 
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
@@ -185,7 +187,7 @@ executable SparseBlas-par
 
 
 
-test-suite SparseBlas-test
+executable SparseBlas-test
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
@@ -213,11 +215,13 @@ test-suite SparseBlas-test
                        SparseBlas.Dense.DENSE 
 
   -- Test dependencies.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       QuickCheck ^>=2.14,
-                       SparseBlas
+                       QuickCheck ^>=2.13,
+                       SparseBlas,
+                       parallel
+                      --  vector-strategies 
 
 
 test-suite SBlasTestP 
@@ -230,7 +234,7 @@ test-suite SBlasTestP
   -- The directory where the test specifications are found.
   hs-source-dirs:      testsuite/tests/Test/SparseBlas/Parallel,
                        testsuite/tests/Test,
-                       src 
+                       src, util 
 
   main-is:             PCheck.hs 
 
@@ -251,17 +255,19 @@ test-suite SBlasTestP
                        SparseBlas.Parallel.Dense.DENSE 
 
   -- Test dependencies.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       QuickCheck ^>=2.14,
+                       QuickCheck ^>=2.13,
                        parallel,
                        vector-strategies,
-                       SparseBlas
+                       SparseBlas,
+                       deepseq,
+                       repa 
 
 
 
-Benchmark SparseBlas-bench-small  
+executable SparseBlas-bench-small  
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
@@ -289,26 +295,29 @@ Benchmark SparseBlas-bench-small
                        Util.DataLoaderSmall 
 
   -- Test dependencies.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
                        criterion ^>=1.5.6.2,
                        directory ^>=1.3.6.0,
                        parsec ^>=3.1.14.0,
+                       parallel,
+                       deepseq,
+                       vector-strategies,
                        SparseBlas
 
-  ghc-options: -main-is BenchMarkSmall.hs -o benchmark-small
+  ghc-options: -main-is BenchMarkSmall.hs -o execs/sbenchmark-small
 
 
-Benchmark SparseBlas-bench 
+executable SparseBlas-bench 
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
   -- The interface type and version of the test suite.
-  type:                exitcode-stdio-1.0
+  -- type:                exitcode-stdio-1.0
 
   -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/BenchMark, src
+  hs-source-dirs:      testsuite/BenchMark, src, util 
 
   -- The entrypoint to the test suite.
   main-is:             BenchMark.hs 
@@ -320,6 +329,7 @@ Benchmark SparseBlas-bench
                        BenchMark.SparseBlas.Sparse.Big.CSR,
                        BenchMark.SparseBlas.Sparse.Big.ELL,
                        BenchMark.SparseBlas.Sparse.Big.CSC,
+                       BenchMark.SparseBlas.Dense.Big.DENSE,
                        SparseBlas.Data.Matrix.Sparse.CSC,
                        SparseBlas.Data.Matrix.Sparse.CSR,
                        SparseBlas.Data.Matrix.Sparse.ELL,
@@ -328,14 +338,112 @@ Benchmark SparseBlas-bench
                        Util.DataLoader,
                        Kernels
 
-  ghc-options: -main-is BenchMark.hs -o benchmark 
+  ghc-options: -rtsopts -eventlog -main-is BenchMark.hs -o execs/sbenchmark 
 
   -- Test dependencies.
-  build-depends:       base ^>=4.13.0.0, 
+  build-depends:       base >=4.13.0.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
                        criterion ^>=1.5.6.2,
                        directory ^>=1.3.6.0,
                        parsec ^>=3.1.14.0,
+                       parallel,
+                       vector-strategies,
+                       deepseq,
+                       pcg-random ^>=0.1.3.6,
                        SparseBlas
 
+
+
+executable SparseBlas-bench-parallel  
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/SparseBlas/Parallel, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             PBenchMark.hs 
+
+  other-modules:       SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       SparseBlas.Data.Matrix.Parallel.Generic.Generic,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.COO,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.CSR,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.ELL,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.CSC,
+                       BenchMark.SparseBlas.Parallel.Dense.Big.DENSE,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
+                       Util.DataLoaderSmall,
+                       Util.Parser.MMParser,
+                       Util.DataLoader,
+                       BenchMark.SparseBlas.Parallel.PKernels,
+                       SparseBlas.Data.Matrix.Generic.Generic,
+                       SparseBlas.Data.Matrix.Sparse.COO
+
+  ghc-options: -O2 -threaded -eventlog -rtsopts  -main-is BenchMark.SparseBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
+
+  -- Test dependencies.
+  build-depends:       base >=4.13.0.0, 
+                       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion ^>=1.5.6.2,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       SparseBlas,
+                       parallel,
+                       vector-strategies,
+                       deepseq,
+                       pcg-random ^>=0.1.3.6,
+                       repa 
+
+
+
+
+executable SparseBlas-bench-parallel-small   
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/SparseBlas/Parallel, testsuite/BenchMark/, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             PBenchMarkSmall.hs 
+
+  other-modules:       SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       SparseBlas.Data.Matrix.Parallel.Generic.Generic,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.COO,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.CSR,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.ELL,
+                       BenchMark.SparseBlas.Parallel.Sparse.Big.CSC,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
+                       SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
+                       Util.DataLoaderSmall,
+                       Util.Parser.MMParser,
+                       Util.DataLoader,
+                       BenchMark.SparseBlas.Parallel.PKernels
+
+  ghc-options: -threaded -eventlog -rtsopts -O2 -main-is BenchMark.SparseBlas.Parallel.PBenchMarkSmall.hs -o execs/pbenchmarkSmall  
+
+  -- Test dependencies.
+  build-depends:       base >=4.13.0.0, 
+                       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion ^>=1.5.6.2,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       SparseBlas,
+                       parallel,
+                       vector-strategies,
+                       deepseq
