@@ -23,7 +23,7 @@ import SparseBlas.Parallel.Generic.Generic
       s_convert_test )
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic
     ( Undelay, Sparse(SparseData), RepIndex(D, U), manifest_convert )
-import qualified Data.Vector as UVector
+import qualified Data.Vector.Unboxed as UVector
 
 
 instance (Arbitrary (SparseData O.COO U e), Undelay C.CSC e, Undelay O.COO e) 

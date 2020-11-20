@@ -14,6 +14,8 @@ type MatrixData = M.Map String [MMExchange]
 
 load_data :: FilePath -> IO MatrixData
 load_data dir  = do 
+   print dir 
+   print "-----"
    mat_dirs <- listDirectory dir
    matrices <- forM mat_dirs $ \n -> do 
                 if n == ".DS_Store" then return []
@@ -56,7 +58,9 @@ get_data_with_double l dict = map (\s -> M.lookup s dict) l
 
 matrix_data :: M.Map String MMExchange -> M.Map String MMExchange -> IO (M.Map String MMExchange, M.Map String MMExchange)
 matrix_data small_ms big_ms  = do 
-        small_mdata <- load_data "/home/users/ndemeye/Documents/nasHSpar/src/smaller_matrices"
+        print "I get here"
+        small_mdata <- load_data "dist-newstyle/resources/smaller_matrices"
+        
         let Just (head -> tub100_data)  =  M.lookup "tub100" small_mdata
         let Just (head -> pores_1_data) =  M.lookup "pores_1" small_mdata
         let Just (head -> lf10_data)    =  M.lookup "LF10" small_mdata

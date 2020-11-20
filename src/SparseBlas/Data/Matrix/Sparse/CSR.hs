@@ -10,6 +10,7 @@
 module SparseBlas.Data.Matrix.Sparse.CSR where 
 
 import qualified Data.Vector.Unboxed as U 
+import Control.Parallel.Strategies (NFData)
 
 
 import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
@@ -32,7 +33,7 @@ import qualified SparseBlas.Data.Matrix.Sparse.COO as O
 
 
 data CSR   
-instance (U.Unbox e, Num e, Eq e) => Sparse CSR U e where 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse CSR U e where 
     data instance SparseData CSR U e = CSR { row_offsets     :: U.Vector Int
                                           ,  col_index_csr   :: U.Vector Int
                                           ,  csr_vals        :: U.Vector e

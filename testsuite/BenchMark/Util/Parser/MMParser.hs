@@ -3,7 +3,6 @@
 module Util.Parser.MMParser where 
 
 import qualified Data.Vector.Unboxed as U 
-import qualified Data.Vector as V 
 import System.Environment (getArgs)
 import System.Directory
 
@@ -135,11 +134,11 @@ mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries)
 
 
 mm_to_s_data_p :: MMExchange -> G.SparseData O.COO G.U Double 
-mm_to_s_data_p Empty = O.COO (V.fromList []) 0 0 
+mm_to_s_data_p Empty = O.COO (U.fromList []) 0 0 
 mm_to_s_data_p (MMCOO (fromInteger -> w, fromInteger -> h, _) entries) 
                    =  O.COO 
                      {
-                       O.coo_vals= (V.fromList $ map (\(fromInteger -> i
+                       O.coo_vals= (U.fromList $ map (\(fromInteger -> i
                                                     , fromInteger -> j
                                                     , d) -> (d, i, j)) 
                                                entries)

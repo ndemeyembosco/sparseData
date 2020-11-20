@@ -10,6 +10,7 @@
 module SparseBlas.Data.Matrix.Sparse.ELL where 
 
 import qualified Data.Vector.Unboxed as U 
+import Control.Parallel.Strategies (NFData)
 
 import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -31,7 +32,7 @@ import qualified SparseBlas.Data.Matrix.Sparse.COO as O
 
 
 data ELL   
-instance (U.Unbox e, Num e, Eq e) => Sparse ELL U e where 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse ELL U e where 
     data instance SparseData ELL U e = ELL 
                                        { max_elem_row    :: !Int
                                          , col_index_ell :: U.Vector Int

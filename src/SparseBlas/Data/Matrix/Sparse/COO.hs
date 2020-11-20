@@ -12,6 +12,7 @@ module SparseBlas.Data.Matrix.Sparse.COO where
 
 import qualified Data.Vector.Unboxed as U 
 import Prelude hiding (zipWith)
+import Control.Parallel.Strategies (NFData)
 
 import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -33,7 +34,7 @@ import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
 
 data COO 
 --------------- COO ------------------------
-instance (U.Unbox e, Num e, Eq e) => Sparse COO U e where 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse COO U e where 
     data SparseData COO U e   = COO 
                         {  coo_vals :: U.Vector (e, Int, Int)
                            ,  width :: Int

@@ -40,16 +40,6 @@ gen_vec n = U.replicate n 1.0
 gen_vec_boxed :: Int -> B.Vector Double 
 gen_vec_boxed n = B.replicate n 1.0 
 
-mats_with_doubles = [ "tub100"
-                    , "pores_1"
-                    , "space_station_1"
-                    , "nose4"
-                    , "Maragal_1"
-                    , "LF10"
-                    , "Hamrle1"
-                    , "cage3"
-                    , "bcsstm03"
-                    , "bcsstk03"]
 
 get_data_with_double :: [String] -> MatrixData -> [Maybe [MMExchange]]
 get_data_with_double l dict = map (\s -> M.lookup s dict) l 

@@ -10,7 +10,7 @@
 
 module SparseBlas.Data.Matrix.Parallel.Sparse.COO where 
 
-import qualified Data.Vector as V 
+import qualified Data.Vector.Unboxed as V 
 import Control.Parallel.Strategies
 import Data.Vector.Strategies
 import Prelude hiding (zipWith)
@@ -36,7 +36,7 @@ import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
 
 data COO 
 --------------- COO ------------------------
-instance (NFData e, Num e, Eq e) => Sparse COO U e where 
+instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse COO U e where 
     data SparseData COO U e   = COO 
                         {  coo_vals :: V.Vector (e, Int, Int)
                            ,  width :: !Int
@@ -51,18 +51,18 @@ instance (NFData e, Num e, Eq e) => Sparse COO U e where
     s_dims (COO vals w h) = (w, h)
 
 
-instance NFData e => NFData (SparseData COO U e) where 
+instance (NFData e, V.Unbox e) => NFData (SparseData COO U e) where 
   rnf (COO vals w h) = let ((), (), ()) = (rnf vals, rnf w, rnf h) in (COO vals w h) `seq` ()
     
-instance (NFData e, Num e, Eq e, Sparse COO D e, Sparse COO U e) => Undelay COO e where  
+instance (NFData e, Num e, Eq e, Sparse COO D e, Sparse COO U e, V.Unbox e) => Undelay COO e where  
     s_undelay (SDelayed (h, w) func) = COO vals w h 
       where 
         vals_r r = (V.unfoldrN w (\c -> 
                                   if func (r, c) /= 0 
                                   then Just ((func (r,c), c), c + 1) 
-                                  else Nothing) 0) `using` (parVector 1)
-        rows     = parMap rseq (\r -> V.map (\(x, c) -> (x, r, c)) (vals_r r)) [0..h-1]
-        vals     = (V.concat rows) `using` (parVector 1)
+                                  else Nothing) 0) 
+        rows     = Prelude.map (\r -> V.map (\(x, c) -> (x, r, c)) (vals_r r)) [0..h-1]
+        vals     = (V.concat rows) 
     non_zeros (COO vals w h) = let (v, _, _) = V.unzip3 vals in v  
                       
 

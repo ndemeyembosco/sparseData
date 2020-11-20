@@ -25,14 +25,14 @@ import SparseBlas.Parallel.Generic.Generic
       s_convert_test ) 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic
     ( Sparse(SparseData), RepIndex(D, U) ) 
-import qualified Data.Vector as UVector
+import qualified Data.Vector.Unboxed as UVector
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies 
 import qualified Data.Set as S
 import Control.Monad ( replicateM ) 
 import Data.List (sort)
 
-instance (Arbitrary a, NFData a, Num a, Eq a, Ord a) 
+instance (Arbitrary a, NFData a, Num a, Eq a, Ord a, UVector.Unbox a) 
          => Arbitrary (SparseData O.COO U a) where 
     arbitrary = do  
         (len :: Int) <- arbitrary

@@ -13,6 +13,7 @@ module SparseBlas.Data.Matrix.Dense.DENSE where
 
 import qualified Data.Vector.Unboxed as U 
 import qualified SparseBlas.Data.Matrix.Sparse.COO as O 
+import Control.Parallel.Strategies (NFData)
 
 import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
     ( Undelay(..),
@@ -30,8 +31,8 @@ import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
       scale )
 
 data DNS 
-instance (U.Unbox e, Num e, Eq e) => Sparse DNS U e where
-    data SparseData DNS U e = DNS { vals :: U.Vector e, width :: !Int, height :: !Int }
+instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse DNS U e where
+    data SparseData DNS U e = DNS { vals :: U.Vector e, width :: {-# UNPACK #-} !Int, height :: {-# UNPACK #-} !Int }
 
     s_index (DNS vals w _) (r, c) = vals U.! (r * w + c) 
     s_dims (DNS vals w h)         = (w, h)

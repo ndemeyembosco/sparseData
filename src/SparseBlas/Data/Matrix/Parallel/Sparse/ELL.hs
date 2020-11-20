@@ -9,7 +9,7 @@
 
 module SparseBlas.Data.Matrix.Parallel.Sparse.ELL where 
 
-import qualified Data.Vector as V 
+import qualified Data.Vector.Unboxed as V 
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies
 import Control.DeepSeq 
@@ -34,7 +34,7 @@ import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O
 
 
 data ELL   
-instance (NFData e, Num e, Eq e) => Sparse ELL U e where 
+instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse ELL U e where 
     data instance SparseData ELL U e = ELL 
                                        { max_elem_row    :: !Int
                                          , col_index_ell :: V.Vector Int
@@ -61,9 +61,9 @@ instance (NFData e, Num e, Eq e, Sparse ELL D e, Sparse ELL U e) => Undelay ELL 
          vals_r r = (V.unfoldrN w (\c -> 
                                     if func (r, c) /= 0 
                                     then Just ((func (r,c), c), c + 1) 
-                                    else Just ((0, c), c + 1)) 0) `using` (parVector 2)
+                                    else Just ((0, c), c + 1)) 0) 
          rows         = parMap rpar (\r -> vals_r r) [0..h-1]
-         all_vals_c   = (V.concat rows) `using` (parVector 2)
+         all_vals_c   = (V.concat rows)
          r_max        = let len_list = parMap rpar V.length rows 
                         in if not $ Prelude.null len_list
                              then Prelude.maximum len_list

@@ -12,6 +12,7 @@ module SparseBlas.Data.Matrix.Sparse.CSC where
 import qualified SparseBlas.Data.Matrix.Sparse.COO as O 
 import qualified SparseBlas.Data.Matrix.Dense.DENSE as D 
 import qualified Data.Vector.Unboxed as U 
+import Control.Parallel.Strategies (NFData)
 import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
     ( Undelay(..),
       Sparse(s_dims, s_index, SparseData),
@@ -31,7 +32,7 @@ import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
 
 
 data CSC 
-instance (U.Unbox e, Num e, Eq e) => Sparse CSC U e where 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse CSC U e where 
     data instance SparseData CSC U e = CSC {
                                           col_offsets   :: U.Vector Int 
                                         , row_index_csc :: U.Vector Int 

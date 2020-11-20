@@ -11,7 +11,7 @@ module SparseBlas.Data.Matrix.Parallel.Sparse.CSC where
 
 import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O 
 import qualified SparseBlas.Data.Matrix.Parallel.Dense.DENSE as D 
-import qualified Data.Vector as V 
+import qualified Data.Vector.Unboxed as V 
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies
 import Control.DeepSeq 
@@ -34,7 +34,7 @@ import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
 
 
 data CSC 
-instance (NFData e, Num e, Eq e) => Sparse CSC U e where 
+instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse CSC U e where 
     data instance SparseData CSC U e = CSC {
                                           col_offsets   :: V.Vector Int 
                                         , row_index_csc :: V.Vector Int 
@@ -68,15 +68,15 @@ instance (NFData e, Num e, Eq e, Sparse CSC D e, Sparse CSC U e) => Undelay CSC 
                                    vals_r c = (V.unfoldrN w (\r -> 
                                                     if func (r, c) /= 0 
                                                     then Just ((func (r,c), c), c + 1) 
-                                                    else Nothing) 0) `using` (parVector 2)
+                                                    else Nothing) 0) 
                                    cols      = parMap rpar (\c -> 
                                                                vals_r c) 
                                                              [0..w-1]
-                                   all_vals_r   = (V.concat cols) `using` (parVector 2) 
+                                   all_vals_r   = (V.concat cols) 
                                    c_counts     = (V.fromList 
                                                   $ Prelude.map V.length 
-                                                                cols) `using` (parVector 2)
-                                   c_offs       = (V.scanl (+) 0 c_counts) `using` (parVector 2)
+                                                                cols) 
+                                   c_offs       = (V.scanl (+) 0 c_counts) 
                                    (vals, rows) = V.unzip all_vals_r
     non_zeros (CSC _ _ vals _ _) = vals 
 

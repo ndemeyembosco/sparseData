@@ -14,7 +14,7 @@ module SparseBlas.Parallel.Generic.Generic where
 
 import Test.QuickCheck ( Arbitrary(..), Gen ) 
 import Test.QuickCheck.Property 
-import qualified Data.Vector as UVector
+import qualified Data.Vector.Unboxed as UVector
 import qualified Data.Vector.Generic as GVector
 import qualified Data.Set as S 
 import Control.Parallel.Strategies 
@@ -35,7 +35,7 @@ import SparseBlas.Data.Matrix.Parallel.Generic.Generic
 import Data.List (sort)
 
 
-instance (NFData a, Arbitrary a, Ord a, Num a) 
+instance (NFData a, Arbitrary a, Ord a, Num a, UVector.Unbox a) 
          => Arbitrary (UVector.Vector a) where
     arbitrary = arbitraryVector
     shrink    = shrinkVector
@@ -278,7 +278,7 @@ s_convert_test arr =
     in arr' == arr 
 
 
-s_vec_test :: (Eq a, Num a, NFData a) => UVector.Vector a  -> Bool
+s_vec_test :: (Eq a, Num a, NFData a, UVector.Unbox a) => UVector.Vector a  -> Bool
 s_vec_test vec = 
     let 
         un_vec = from_vector vec 

@@ -27,12 +27,13 @@ config = defaultConfig
 
 
 bench_coo_big :: IO (U.Vector Double)
-bench_coo_big = do
-   print "entering bench_coo"
-   big_data_m <- matrix_data M.empty M.empty 
-   let 
-      sp_data_bigm_coo = sparse_matrify big_data_m
-      !ans =  to_vector $ axpy 1.0 (from_vector (fromJust $ M.lookup "asic_680k" vec_data)) 1.0 (from_vector (fromJust $ M.lookup "asic_680k" vec_data))
-      dud  = deepseq ans 0 
-   print "should have printed length"
-   return ans 
+bench_coo_big = undefined 
+   -- do
+   -- print "entering bench_coo"
+   -- big_data_m <- matrix_data M.empty M.empty 
+   -- let 
+   --    sp_data_bigm_coo = sparse_matrify big_data_m
+   --    !ans =  to_vector $ axpy 1.0 (from_vector (fromJust $ M.lookup "asic_680k" vec_data)) 1.0 (from_vector (fromJust $ M.lookup "asic_680k" vec_data))
+   --    dud  = deepseq ans 0 
+   -- print "should have printed length"
+   -- return ans 

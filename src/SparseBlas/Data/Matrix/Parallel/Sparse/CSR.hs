@@ -9,7 +9,7 @@
 
 module SparseBlas.Data.Matrix.Parallel.Sparse.CSR where 
 
-import qualified Data.Vector as V  
+import qualified Data.Vector.Unboxed as V  
 import Control.DeepSeq 
 
 
@@ -35,7 +35,7 @@ import Data.Vector.Strategies
 
 
 data CSR   
-instance (NFData e, Num e, Eq e) => Sparse CSR U e where 
+instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse CSR U e where 
     data instance SparseData CSR U e = CSR { row_offsets     :: V.Vector Int
                                           ,  col_index_csr   :: V.Vector Int
                                           ,  csr_vals        :: V.Vector e
@@ -68,15 +68,15 @@ instance (NFData e, Num e, Eq e, Sparse CSR D e, Sparse CSR U e) => Undelay CSR 
                                    vals_r r = (V.unfoldrN w (\c -> 
                                                     if func (r, c) /= 0 
                                                     then Just ((func (r,c), c), c + 1) 
-                                                    else Nothing) 0) `using` (parVector 2) 
+                                                    else Nothing) 0) 
                                    rows      = parMap rpar (\r -> 
                                                                vals_r r) 
                                                              [0..h-1]
-                                   all_vals_c   = (V.concat rows) `using` (parVector 2) 
+                                   all_vals_c   = (V.concat rows) 
                                    r_counts     = (V.fromList 
                                                   $ Prelude.map V.length 
-                                                                rows) `using` (parVector 2)
-                                   r_offs       = (V.scanl (+) 0 r_counts) `using` (parVector 2)
+                                                                rows) 
+                                   r_offs       = (V.scanl (+) 0 r_counts) 
                                    (vals, cols) = V.unzip all_vals_c
     non_zeros (CSR _ _ vals _ _) = vals 
 

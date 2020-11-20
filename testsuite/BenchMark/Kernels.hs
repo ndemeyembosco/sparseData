@@ -35,20 +35,22 @@ axpydot w v u alpha = (z, r)
 
 -- axpydot : 
 axpy :: (U.Unbox a, Floating a) 
-     => a  -> SVector a -> a -> SVector a -> SVector a 
-axpy a x p y = a !*! x !+! (p !*! y) 
+     => a  -> SVector a -> SVector a -> SVector a 
+axpy a x y = a !*! x !+! y  
 
 
 -- two axpies 
 
-twiceAxpyNoForce :: (U.Unbox a, Floating a) 
-     => a -> SVector a -> a -> SVector a -> SVector a 
-twiceAxpyNoForce a x p y = let n = axpy a x p y in axpy a n p n 
+-- twiceAxpyNoForce :: (U.Unbox a, Floating a) 
+--      => a -> SVector a -> a -> SVector a -> SVector a 
+-- twiceAxpyNoForce a x p y = let n = axpy a x p y in axpy a n p n 
 
 
-twiceAxpyForce :: (U.Unbox a, Floating a) 
-     => a -> SVector a -> a -> SVector a -> SVector a 
-twiceAxpyForce a x p y = let n = to_vector $ axpy a x p y in axpy a (from_vector n) p (from_vector n)  
+-- twiceAxpyForce :: (U.Unbox a, Floating a) 
+--      => a -> SVector a -> a -> SVector a -> SVector a 
+-- twiceAxpyForce a x p y = let n = to_vector $ axpy a x p y in axpy a (from_vector n) p (from_vector n)  
+
+
 
 
 

@@ -6,7 +6,7 @@ import Criterion.Main
 import Criterion.Types 
 import BenchMark.SparseBlas.Parallel.PKernels
 import Util.DataLoader
-import qualified Data.Vector as U 
+import qualified Data.Vector.Unboxed as U 
 import qualified Data.Map.Strict as M
 import Util.Parser.MMParser 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic 
@@ -31,9 +31,9 @@ bench_csc_big = do
       sp_data_bigm_coo = sparse_matrify big_data_m
       sp_data_bigm_csc    = M.map (\m -> manifest_convert m :: SparseData CSC U Double ) sp_data_bigm_csc
    let big_vec_data = M.fromList [
-                    ("bcsstk09", gen_vec_boxed 1083)
-                   , ("bcsstk11", gen_vec_boxed 1473)
-                   , ("bcsstk14", gen_vec_boxed 1806)
+                    ("bcsstk09", gen_vec 1083)
+                   , ("bcsstk11", gen_vec 1473)
+                   , ("bcsstk14", gen_vec 1806)
                    ]
 
 
