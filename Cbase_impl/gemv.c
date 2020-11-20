@@ -12,11 +12,12 @@ double drand (double low, double high)
 
 int main(int argc, char* argv[])
 {
-    clock_t start, end; 
+    clock_t start1, end1, start, end; 
     double elapsed; 
     int dimension; 
     int max_rand; 
-
+    
+    start1 = clock();
     dimension = atoi(argv[1]);
     max_rand  = atoi(argv[2]);
 
@@ -54,4 +55,8 @@ int main(int argc, char* argv[])
     free(X); 
     free(Y);
     free(A); 
+    end1 = clock();
+    
+    double elapsed1 = ((double) (end1 - start1) / CLOCKS_PER_SEC);
+    printf("time total: %f \n", elapsed1);
 }
