@@ -144,12 +144,11 @@ executable SparseBlas-par
 
   -- Modules included in this executable, other than Main.
   other-modules:      SparseBlas.Data.Matrix.Parallel.Generic.Generic, 
-                      SparseBlas.Data.Matrix.Parallel.Dense.DENSE
-                      -- ,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.COO,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.ELL
+                      SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
+                      SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                      SparseBlas.Data.Matrix.Parallel.Sparse.CSR, 
+                      SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
+                      SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
 
   -- LANGUAGE extensions used by modules in this package.
   other-extensions:    GADTs, 

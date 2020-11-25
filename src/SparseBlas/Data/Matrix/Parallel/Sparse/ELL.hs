@@ -15,48 +15,47 @@ import Data.Vector.Strategies
 import Control.DeepSeq 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
-    ( Undelay(..),
-      Sparse(s_dims, s_index, SparseData),
-      SparseData(SDelayed),
-      RepIndex(D, U),
-      delay,
-      transpose,
-      convert,
-      manifest_convert,
-      empty,
-      map,
-      zipWith,
-      add,
-      minus,
-      scale ) 
+    -- ( Undelay(..),
+    --   Sparse(s_dims, s_index, SparseData),
+    --   SparseData(SDelayed),
+    --   RepIndex(D, U),
+    --   delay,
+    --   transpose,
+    --   convert,
+    --   manifest_convert,
+    --   empty,
+    --   map,
+    --   zipWith,
+    --   add,
+    --   minus,
+    --   scale ) 
 import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O
+import GHC.TypeLits  
+import Data.Proxy
 
 
 
 data ELL   
-instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse ELL U e where 
-    data instance SparseData ELL U e = ELL 
-                                       { max_elem_row    :: !Int
-                                         , col_index_ell :: V.Vector Int
-                                         , ell_vals      :: V.Vector e
-                                         , ell_height    :: !Int
-                                         , ell_width     :: !Int
-                                        } 
+instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Sparse ELL U n1 n2 e where 
+    data instance SparseData ELL U n1 n2 e = ELL 
+                                              {   max_elem_row    :: !Int
+                                                , col_index_ell :: V.Vector Int
+                                                , ell_vals      :: V.Vector e
+                                                } 
     -- indexing is big o of maximum number of elements per row
-    s_index (ELL max_e_r col_ind vals h w) (r, c) = el 
+    s_index (ELL max_e_r col_ind vals) (r, c) = el 
        where 
          to_start = r  * max_e_r
          vec      = V.slice to_start max_e_r  $ V.zip col_ind vals -- is slicing by max_elem per row too
          el = case V.find (\(x,_) -> x == c) vec of 
                           Nothing      -> 0 
                           Just (_, a1) -> a1 
-    s_dims (ELL _ _ _ h w) = (w, h)
 
-instance NFData e => NFData (SparseData ELL U e) where 
-  rnf (ELL max_e cols vals h w) = let ((), (), (), (), ()) = (rnf max_e, rnf cols, rnf vals, rnf h, rnf w) in (ELL max_e cols vals h w) `seq` () 
+instance NFData (SparseData ELL U n1 n2 e) where 
+  rnf (ELL max_e cols vals) = let ((), (), ()) = (rnf max_e, rnf cols, rnf vals) in (ELL max_e cols vals) `seq` () 
 
-instance (NFData e, Num e, Eq e, Sparse ELL D e, Sparse ELL U e) => Undelay ELL e where 
-    s_undelay (SDelayed (h, w) func) = ELL r_max cols vals h w 
+instance (Sparse ELL D n1 n2 e, Sparse ELL U n1 n2 e) => Undelay ELL n1 n2 e where 
+    s_undelay (SDelayed func) = ELL r_max cols vals
        where  
          vals_r r = (V.unfoldrN w (\c -> 
                                     if func (r, c) /= 0 
@@ -69,24 +68,26 @@ instance (NFData e, Num e, Eq e, Sparse ELL D e, Sparse ELL U e) => Undelay ELL 
                              then Prelude.maximum len_list
                              else 0  
          (vals, cols) = V.unzip all_vals_c
-    non_zeros (ELL _ _ vals _ _) = vals 
+         w            = fromIntegral $ natVal (Proxy :: Proxy n1)
+         h            = fromIntegral $ natVal (Proxy :: Proxy n2)
+    non_zeros (ELL _ _ vals) = vals 
 
 
-instance (Sparse O.COO U e, Undelay ELL e) => Eq (SparseData ELL U e) where 
+instance (Sparse O.COO U n1 n2 e, Undelay ELL n1 n2 e) => Eq (SparseData ELL U n1 n2 e) where 
   arr1 == arr2 = arr1_coo == arr2_coo 
           where 
-            (arr1_coo :: SparseData O.COO U e) = manifest_convert arr1 
-            (arr2_coo :: SparseData O.COO U e) = manifest_convert arr2
+            (arr1_coo :: SparseData O.COO U n1 n2 e) = manifest_convert arr1 
+            (arr2_coo :: SparseData O.COO U n1 n2 e) = manifest_convert arr2
 
-instance (Eq (SparseData ELL U e), Undelay ELL e) => Eq (SparseData ELL D e) where 
+instance (Eq (SparseData ELL U n1 n2 e), Undelay ELL n1 n2 e) => Eq (SparseData ELL D n1 n2 e) where 
     arr1 == arr2 = (s_undelay arr1) == (s_undelay arr2)
 
 
 
-instance (Show e, Undelay ELL e, Sparse ELL ty e) => Show (SparseData ELL ty e) where 
+instance (Show e, Undelay ELL n1 n2 e, Sparse ELL ty n1 n2 e) => Show (SparseData ELL ty n1 n2 e) where 
   show arr = let darr = SparseBlas.Data.Matrix.Parallel.Sparse.ELL.delay arr in 
               case s_undelay darr of 
-                ELL max_elem cols vals h w ->  unlines ["ELL", "\n"
+                ELL max_elem cols vals ->  unlines ["ELL", "\n"
                                                         , "________"
                                                         , "(height, width): "
                                                         , show (h, w), "\n"
@@ -96,46 +97,45 @@ instance (Show e, Undelay ELL e, Sparse ELL ty e) => Show (SparseData ELL ty e) 
                                                         , "\n", show max_elem, "\n"
                                                         , "columns: "
                                                         , "\n", show cols]
+          where 
+            w = fromIntegral $ natVal (Proxy :: Proxy n2) 
+            h = fromIntegral $ natVal (Proxy :: Proxy n1)
 
 
-delay :: (NFData e, Num e, Eq e, Sparse ELL ty e) => SparseData ELL ty e -> SparseData ELL D e 
+delay :: (Sparse ELL ty n1 n2 e) => SparseData ELL ty n1 n2 e -> SparseData ELL D n1 n2 e 
 delay = SGeneric.delay
 
 
-transpose :: (NFData e, Sparse ELL ty e) 
-          => SparseData ELL ty e -> SparseData ELL D e
+transpose :: (Sparse ELL ty n1 n2 e) 
+          => SparseData ELL ty n1 n2 e -> SparseData ELL D n2 n1 e
 transpose = SGeneric.transpose
 
 
-convert :: Sparse r2 D e => SparseData ELL D e -> SparseData r2 D e 
-convert  = SGeneric.convert
+convert :: Sparse r2 D n1 n2 e => SparseData ELL D n1 n2 e -> SparseData r2 D n1 n2 e 
+convert  = SGeneric.convert 
 
 
-empty :: Sparse ELL ty a => SparseData ELL ty a -> Bool 
-empty = SGeneric.empty 
-
-
-map :: Sparse ELL ty e => (e -> b) -> SparseData ELL ty e -> SparseData ELL D b 
+map :: Sparse ELL ty n1 n2 e => (e -> b) -> SparseData ELL ty n1 n2 e -> SparseData ELL D n1 n2 b 
 map = SGeneric.map 
 
 
-zipWith :: (Sparse ELL ty a, Sparse ELL ty1 b, ty ~ ty1) 
-        => (a -> b -> c)        -> SparseData ELL ty a 
-        -> SparseData ELL ty1 b -> SparseData ELL D c
+zipWith :: (Sparse ELL ty n1 n2 a, Sparse ELL ty1 n1 n2 b, ty ~ ty1) 
+        => (a -> b -> c)        -> SparseData ELL ty n1 n2 a 
+        -> SparseData ELL ty1 n1 n2 b -> SparseData ELL D n1 n2 c
 zipWith = SGeneric.zipWith
 
 
-(#+) :: (Sparse ELL ty a, Num a) 
-     => SparseData ELL ty a -> SparseData ELL ty a -> SparseData ELL D a
+(#+) :: (Sparse ELL ty n1 n2 a) 
+     => SparseData ELL ty n1 n2 a -> SparseData ELL ty n1 n2 a -> SparseData ELL D n1 n2 a
 (#+) = SGeneric.add 
 
-(#-) :: (Sparse ELL ty a, Num a) 
-     => SparseData ELL ty a -> SparseData ELL ty a -> SparseData ELL D a
+(#-) :: (Sparse ELL ty n1 n2 a) 
+     => SparseData ELL ty n1 n2 a -> SparseData ELL ty n1 n2 a -> SparseData ELL D n1 n2 a
 (#-) = SGeneric.minus 
 
 
 
-scale :: (Sparse ELL ty a, Num a) 
-      => a -> SparseData ELL ty a -> SparseData ELL D a 
+scale :: (Sparse ELL ty n1 n2 a) 
+      => a -> SparseData ELL ty n1 n2 a -> SparseData ELL D n1 n2 a 
 scale = SGeneric.scale 
 

@@ -14,7 +14,6 @@ module SparseBlas.Data.Matrix.Parallel.Dense.DENSE where
 import qualified Data.Vector.Unboxed as V  
 import qualified Data.Vector.Unboxed.Mutable as VM 
 import Control.Parallel.Strategies ( using, NFData )
-import Data.Vector.Strategies (parVector )
 import Control.DeepSeq 
 import Data.Array.Repa.Eval (fillChunkedP, fillLinearS)
 import System.IO.Unsafe (unsafePerformIO)
