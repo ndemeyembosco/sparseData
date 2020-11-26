@@ -22,22 +22,24 @@ import SparseBlas.Data.Matrix.Parallel.Generic.Generic
       delay,
       transpose,
       scale )
+import GHC.TypeLits 
+import Data.Proxy 
 
 
 
 
 -- axpydot : 
-axpydot ::  (Floating a, NFData a, U.Unbox a)
-        => SVector a -> SVector a -> SVector a -> a 
-        -> (SVector a, a) 
+axpydot ::  (Floating a, NFData a, U.Unbox a, KnownNat n)
+        => SVector n a -> SVector n a -> SVector n a -> a 
+        -> (SVector n a, a) 
 axpydot w v u alpha = (z, r)
    where  
      z       = w !-! (alpha !*! v)
      r       = z !.! u 
 
 -- axpydot : 
-axpy ::  (Floating a, NFData a, U.Unbox a)
-     => a  -> SVector a -> SVector a -> SVector a 
+axpy ::  (Floating a, NFData a, U.Unbox a, KnownNat n)
+     => a  -> SVector n a -> SVector n a -> SVector n a 
 axpy a x y = a !*! x !+! y  
 
 -- axpyU ::  (Floating a, NFData a)
@@ -64,17 +66,17 @@ axpy a x y = a !*! x !+! y
 
 
 -- vadd 
-vadd :: (Floating a, NFData a, U.Unbox a) 
-     => SVector a -> SVector a 
-     -> SVector a -> SVector a 
+vadd :: (Floating a, NFData a, U.Unbox a, KnownNat n) 
+     => SVector n a -> SVector n a 
+     -> SVector n a -> SVector n a 
 vadd v1 v2 v3 = v1 !+! v2 !+! v3 
 
 
 
 -- waxpy 
-waxpby :: (Floating a, NFData a, U.Unbox a) 
-       => a -> SVector a -> a -> SVector a 
-       -> SVector a  
+waxpby :: (Floating a, NFData a, U.Unbox a, KnownNat n) 
+       => a -> SVector n a -> a -> SVector n a 
+       -> SVector n a  
 waxpby a x b y = a !*! x !+! (b !*! y)
 
 
@@ -88,8 +90,8 @@ waxpby a x b y = a !*! x !+! (b !*! y)
 --      => SparseData rep ty a -> SVector a -> SVector a  
 -- ataxForce a x = let x' = from_vector $! to_vector $ mvec a x in (transpose a) #. x' 
 
-mvec :: (Sparse rep ty a, Floating a, U.Unbox a) 
-     => SparseData rep ty a -> SVector a -> SVector a  
+mvec :: (Sparse rep ty n1 n2 a, Floating a, U.Unbox a) 
+     => SparseData rep ty n1 n2 a -> SVector n2 a -> SVector n1 a  
 mvec a x =  a #. x
 
 -- ataxTwiceNoForce :: (Sparse rep ty a, Floating a, U.Unbox a) 
@@ -116,49 +118,51 @@ mvec a x =  a #. x
 
 
 -- -- bicgk 
-bicgk :: (Sparse rep ty a, Floating a) 
-      => SparseData rep ty a -> SVector a 
-      -> SVector a -> (SVector a, SVector a)
+bicgk :: (Sparse rep ty n1 n2 a, Floating a) 
+      => SparseData rep ty n1 n2 a -> SVector n2 a 
+      -> SVector n1 a -> (SVector n1 a, SVector n2 a)
 bicgk a p r = (a #. p, transpose a #. r)
 
 
 
 -- aBx + y 
-smvm_xpy :: (Sparse rep ty a, Floating a) 
-         => SparseData rep ty a -> U.Vector a -> U.Vector a 
-         -> a -> SVector a  
+smvm_xpy :: (Sparse rep ty n n a, Floating a) 
+         => SparseData rep ty n n a -> U.Vector a -> U.Vector a 
+         -> a -> SVector n a  
 smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2 
    where 
      smat           = delay mat 
-     (svec1, svec2) = (from_vector vec1, from_vector vec2) 
+     (svec1, svec2) = case (from_vector vec1, from_vector vec2) of 
+                          (Just v1, Just v2) -> (v1, v2)
+                          _                  -> error "should provide non-empty vector to smvm_xpy!"
      (^+^)          = vzipWith (+)
 
 
 -- gemv 
-gemv :: (Sparse rep ty a, Floating a) 
-     => a -> a -> SparseData rep ty a  -> SVector a 
-     -> SVector a -> SVector a 
+gemv :: (Sparse rep ty n n a, Floating a) 
+     => a -> a -> SparseData rep ty n n a  -> SVector n a 
+     -> SVector n a -> SVector n a 
 gemv alpha beta a x y = (alpha `scale` a #. x) !+! (beta !*! y) 
 
 
 -- gemvt 
-gemvt :: (Sparse rep ty a, Floating a) 
-      => a -> a -> SparseData rep ty a -> SVector a 
-      -> SVector a -> (SVector a, SVector a)
+gemvt :: (Sparse rep ty n n a, Floating a) 
+      => a -> a -> SparseData rep ty n n a -> SVector n a 
+      -> SVector n a -> (SVector n a, SVector n a)
 gemvt alpha beta a y z = let x = (beta !*! ((transpose a) #. y)) !+! z in (x, alpha !*! (a #. x))   
 
 
 -- gemver 
-gesummv :: (Sparse rep ty a, Floating a) 
-        => a -> a -> SparseData rep ty a -> SparseData rep ty a 
-        -> SVector a -> SVector a 
+gesummv :: (Sparse rep ty n n a, Floating a) 
+        => a -> a -> SparseData rep ty n n a -> SparseData rep ty n n a 
+        -> SVector n a -> SVector n a 
 gesummv alpha beta a b x = (alpha !*! (a #. x)) !+! (beta !*! (b #. x))
 
 
 -- trilazy 
-trilazy :: (Sparse rep ty a, Floating a) 
-        => SparseData rep ty a -> SparseData rep ty a 
-        -> SVector a -> SVector a
+trilazy :: (Sparse rep ty n n a, Floating a) 
+        => SparseData rep ty n n a -> SparseData rep ty n n a 
+        -> SVector n a -> SVector n a
 trilazy w_mat y_mat u = r !-! s 
    where 
      s = w_mat #. ((transpose y_mat) #. u)

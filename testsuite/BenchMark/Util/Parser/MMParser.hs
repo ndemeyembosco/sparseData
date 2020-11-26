@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, DataKinds, GADTs #-}
+{-# LANGUAGE ViewPatterns, DataKinds, GADTs, RankNTypes #-}
 
 module Util.Parser.MMParser where 
 
@@ -17,6 +17,8 @@ import SparseBlas.Data.Matrix.Generic.Generic hiding (map)
 import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O 
 import SparseBlas.Data.Matrix.Sparse.COO hiding (map)
 import           Text.Parsec.String     (Parser, parseFromFile)
+import GHC.TypeLits 
+import Data.Proxy 
 
 
 lexer :: TokenParser u
@@ -133,17 +135,21 @@ mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries)
 
 
 
-mm_to_s_data_p :: MMExchange -> G.SparseData O.COO G.U Double 
-mm_to_s_data_p Empty = O.COO (U.fromList []) 0 0 
+mm_to_s_data_empty :: MMExchange -> G.SparseData O.COO G.U 0 0 Double 
+mm_to_s_data_empty Empty = O.COO (U.fromList [])
+
+mm_to_s_data_p :: MMExchange -> (forall n1 n2. (KnownNat n1, KnownNat n2) => G.SparseData O.COO G.U n1 n2 Double)  
 mm_to_s_data_p (MMCOO (fromInteger -> w, fromInteger -> h, _) entries) 
-                   =  O.COO 
-                     {
-                       O.coo_vals= (U.fromList $ map (\(fromInteger -> i
-                                                    , fromInteger -> j
-                                                    , d) -> (d, i, j)) 
-                                               entries)
-                     , O.width=w
-                     , O.height=h}
+                   =  case (someNatVal $ toInteger w, someNatVal $ toInteger h) of 
+                         (Just w1, Just h1) -> (O.COO 
+                                                {
+                                                  O.coo_vals= (U.fromList $ map (\(fromInteger -> i
+                                                                                , fromInteger -> j
+                                                                                , d) -> (d, i, j)) 
+                                                                          entries)
+                                                  } :: G.SparseData O.COO G.U w1 h1 Double)
+                         _                  -> error "invalid width and height for exchange data"
+
 
 
 -- main :: IO () 

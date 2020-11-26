@@ -33,17 +33,18 @@ to_vector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.V
 {-# INLINE to_vector #-}
 to_vector f = ans  
        where 
-          ans  = case f of 
+          !ans  = case f of 
               Z      -> V.fromList [] 
               F func -> vals 
                 where 
                         vals = v `deepseq` v    
-                        len  = fromIntegral $ natVal (Proxy :: Proxy n)
+                        !len  = fromIntegral $ natVal (Proxy :: Proxy n)
+                        -- v    = V.generate len func 
                         v    = unsafePerformIO $ do 
                                             (vec :: VM.IOVector e) <- VM.new len   
                                             fillChunkedP len (VM.unsafeWrite vec) func  
-                                            v  <- V.unsafeFreeze vec 
-                                            return v 
+                                            v1  <- V.unsafeFreeze vec 
+                                            return v1 
 
 instance (KnownNat n, NFData a, V.Unbox a, Show a) => Show (SVector n a) where 
     show v@(F f) = show $ to_vector v 
@@ -65,6 +66,19 @@ from_vector !vec = let len = V.length vec
                                         else Just (F ((V.!) vec) :: SVector l a) 
                                    else 
                                        Nothing 
+
+
+from_vector' :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
+{-# INLINE from_vector' #-}
+from_vector' !vec = let len = V.length vec 
+                   in case someNatVal (toInteger len) of 
+                        Nothing -> error "(from_vector): invalid length of vector!"  
+                        Just l  -> if l == (SomeNat (Proxy :: Proxy n)) 
+                                   then if V.null vec 
+                                        then (Z :: SVector l a) 
+                                        else (F ((V.!) vec) :: SVector l a) 
+                                   else 
+                                       error "(from_vector): length mismatch in returned!"
 
 
 vmap ::  (KnownNat n, NFData a, V.Unbox a) => (a -> b) -> SVector n a -> SVector n b

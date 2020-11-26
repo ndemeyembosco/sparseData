@@ -11,15 +11,15 @@ import qualified Data.Map.Strict as M
 import Util.Parser.MMParser ( MMExchange, mm_to_s_data_p ) 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic
     ( Sparse(SparseData), RepIndex(U) ) 
-import SparseBlas.Data.Matrix.Parallel.Sparse.COO ( COO ) 
-import BenchMark.SparseBlas.Parallel.Sparse.Big.COO
-    ( bench_coo_big ) 
-import BenchMark.SparseBlas.Parallel.Sparse.Big.CSR
-    ( bench_csr_big ) 
-import BenchMark.SparseBlas.Parallel.Sparse.Big.ELL
-    ( bench_ell_big ) 
-import BenchMark.SparseBlas.Parallel.Sparse.Big.CSC
-    ( bench_csc_big )
+-- import SparseBlas.Data.Matrix.Parallel.Sparse.COO ( COO ) 
+-- import BenchMark.SparseBlas.Parallel.Sparse.Big.COO
+--     ( bench_coo_big ) 
+-- import BenchMark.SparseBlas.Parallel.Sparse.Big.CSR
+--     ( bench_csr_big ) 
+-- import BenchMark.SparseBlas.Parallel.Sparse.Big.ELL
+--     ( bench_ell_big ) 
+-- import BenchMark.SparseBlas.Parallel.Sparse.Big.CSC
+--     ( bench_csc_big )
 import BenchMark.SparseBlas.Parallel.Dense.Big.DENSE 
     (bench_dns_big)
 import Data.Maybe
@@ -39,9 +39,9 @@ import Control.Monad.ST
 -- genRandMatricesPCG = Prelude.map (\(w, h) -> genRandMatrixPCG w h) 
 
 
-sparse_matrify :: M.Map String MMExchange 
-               -> M.Map String (SparseData COO U Double)
-sparse_matrify dict = M.map mm_to_s_data_p dict  
+-- sparse_matrify :: M.Map String MMExchange 
+--                -> M.Map String (SparseData COO U Double)
+-- sparse_matrify dict = M.map mm_to_s_data_p dict  
 
 config :: Config
 config = defaultConfig 
@@ -56,6 +56,7 @@ main :: IO ()
 main = do
       print "starting dense benchmark"
       bench_dns_big  
+
     --   bench_csr_big  
     --   bench_ell_big 
     --   bench_csc_big  

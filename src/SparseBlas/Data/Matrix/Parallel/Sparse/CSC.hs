@@ -16,20 +16,7 @@ import Control.Parallel.Strategies
 import Data.Vector.Strategies
 import Control.DeepSeq 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
-    -- ( Undelay(..),
-    --   Sparse(s_dims, s_index, SparseData),
-    --   SparseData(SDelayed),
-    --   RepIndex(D, U),
-    --   delay,
-    --   transpose,
-    --   convert,
-    --   manifest_convert,
-    --   empty,
-    --   map,
-    --   zipWith,
-    --   add,
-    --   minus,
-    --   scale )
+
 import GHC.TypeLits 
 import Data.Proxy
 

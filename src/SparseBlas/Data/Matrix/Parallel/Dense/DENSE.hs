@@ -22,27 +22,14 @@ import Data.Proxy
 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic as SGeneric
-    -- ( 
-    --     Undelay(..),
-    --   Sparse(s_dims, s_index, SparseData),
-    --   SparseData(SDelayed),
-    --   RepIndex(D, U),
-    --   delay,
-    --   transpose,
-    --   convert,
-    --   empty,
-    --   map,
-    --   zipWith,
-    --   add,
-    --   minus,
-    --   scale )
+
 
 data DNS 
 instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Sparse DNS U n1 n2 e where
     data SparseData DNS U n1 n2 e = DNS { vals :: V.Vector e }
 
     {-# INLINE s_index #-}
-    s_index (DNS vals) (r, c) = vals V.! ((r * w + c) `mod` h) 
+    s_index (DNS vals) (r, c) = vals V.! ((r * w + c)) 
                            where 
                               w = fromIntegral $ natVal (Proxy :: Proxy n1)
                               h = fromIntegral $ natVal (Proxy :: Proxy n2)
@@ -52,19 +39,17 @@ instance (Sparse DNS D n1 n2 e, Sparse DNS U n1 n2 e) => Undelay DNS n1 n2 e whe
     {-# INLINE s_undelay #-}
     s_undelay (SDelayed func) = DNS vals
       where 
-          vals = v `deepseq` v 
+        --   vals = v `deepseq` v 
           w    = fromIntegral $ natVal (Proxy :: Proxy n1) 
           h    = fromIntegral $ natVal (Proxy :: Proxy n2)    
-          v    = unsafePerformIO $ do 
-                             (vec :: VM.IOVector e) <- VM.new (w*h) 
-                             fillChunkedP (w*h) (VM.unsafeWrite vec) (\n -> let (!r, !c) = n `divMod` w in func (r, c))
-                             v  <- V.unsafeFreeze vec 
-                             return v 
-
-
-        -- vals = (V.unfoldrN (w * h) (\n -> let (r, c) =  n `divMod` w 
-        --                                  in if r < h then Just (func (r, c), n+1)
-        --                                     else Nothing) 0) `using` (parVector 4) 
+        --   v    = unsafePerformIO $ do 
+        --                      (vec :: VM.IOVector e) <- VM.new (w*h) 
+        --                      fillChunkedP (w*h) (VM.unsafeWrite vec) (\n -> let (!r, !c) = n `divMod` w in if r < h then func (r, c) else 0)
+        --                      v'  <- V.unsafeFreeze vec 
+        --                      return v' 
+          vals = (V.unfoldrN (w * h) (\n -> let (r, c) =  n `divMod` w 
+                                         in if r < h then Just (func (r, c), n+1)
+                                            else Nothing) 0) 
     non_zeros (DNS vals) = vals 
 
 

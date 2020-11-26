@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, BangPatterns, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE DataKinds, RankNTypes, BangPatterns, ScopedTypeVariables, FlexibleContexts, KindSignatures #-}
 
 module BenchMark.SparseBlas.Parallel.Dense.Big.DENSE where 
 
@@ -28,13 +28,18 @@ import Control.Parallel (pseq)
 import Control.Exception 
 import Control.Monad.ST 
 import System.Environment (getArgs)
+import GHC.TypeLits 
+import Data.Proxy 
 
 
-genRandMatrixPCG :: Int -> Int -> Double -> Double -> SparseData DNS U Double  
+genRandMatrixPCG ::  Int -> Int -> Double -> Double -> (forall n1 n2. (KnownNat n1, KnownNat n2) => SparseData DNS U n1 n2 Double)  
 genRandMatrixPCG width height start end = runST $ do 
+    let 
+        widthT  = fromJust $ someNatVal $ toInteger width 
+        heightT = fromJust $ someNatVal $ toInteger height 
     gen    <- create 
     to_ret <- UNB.mapM (\(t :: Int) -> uniformR (start :: Double, end :: Double) gen >>= \a -> return (a :: Double)) $ UNB.enumFromN 0 (width * height)
-    return $ DNS to_ret width height 
+    return $ (DNS to_ret :: SparseData DNS U widthT heightT Double) 
 
 
 -- genRandMatricesPCG :: Variate a => [Int] -> [SparseData DNS U a] 
@@ -61,19 +66,22 @@ bench_dns_big = do
    print ("generation start time: " ++ show genTimeStart)
 
    let  
-       (m :: SparseData DNS U Double) = genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand)
+       m  = let dim = fromJust $ someNatVal $ toInteger dimension 
+            in  (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: SparseData DNS U 10000 10000 Double)
        (v1 :: UNB.Vector Double) = UNB.replicate dimension 1.0 
        (v2 :: UNB.Vector Double) = UNB.replicate dimension 1.0   
    m `deepseq` v1 `deepseq` v2 `deepseq` genTimeStart `seq` return ()
    genTimeEnd  <- getCPUTime
    let diff1 = genTimeEnd - genTimeStart 
 
+
+
    genTimeEnd `seq` diff1 `seq` return () 
    print ("total random generation time: " ++ show diff1 ++ "\n")
 
    let 
-       v_func1  = from_vector v1
-       v_func2  = from_vector v2 
+       v_func1  = from_vector' v1
+       v_func2  = from_vector' v2 
    print "doing bench dns!"
 
    
