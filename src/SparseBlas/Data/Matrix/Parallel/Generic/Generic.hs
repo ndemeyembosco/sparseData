@@ -32,8 +32,8 @@ to_vector (f, !len) = vals
           v    = unsafePerformIO $ do 
                              (vec :: VM.IOVector e) <- VM.new len  
                              fillChunkedP len (VM.unsafeWrite vec) f 
-                             v  <- V.unsafeFreeze vec 
-                             return v 
+                             v1  <- V.unsafeFreeze vec 
+                             return v1 
 
 
 from_vector :: (NFData a, V.Unbox a) => V.Vector a -> SVector a 
@@ -103,6 +103,11 @@ class (NFData e, Num e, Eq e, V.Unbox e) => Sparse r (ty :: RepIndex) e where
     (#.)      :: Num e => SparseData r ty e -> SVector e -> SVector e 
     {-# INLINE (#.) #-}
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
+    (#*)     :: SparseData r ty e -> SparseData r ty e -> SparseData r D e 
+    {-# INLINE (#*) #-}
+    (#*) !mat1 !mat2 = let (!delayed_mat1, !delayed_mat2) = (delay mat1, delay mat2) 
+                       in delayed_mat2 #* delayed_mat2 
+
 
 class (Sparse r D e, Sparse r U e) => Undelay r e where 
     s_undelay :: SparseData r D e -> SparseData r U e 
@@ -122,6 +127,13 @@ instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse r D e where
        where 
            {-# INLINE dots #-}
            dots !ri = let g = (curry m_index_f) ri in (g, w) !.! v 
+    {-# INLINE (#*) #-}
+    (#*) (SDelayed (!w1, !h1) m_index_f1) (SDelayed (!w2, !h2) m_index_f2) = SDelayed (w2, h1) ans_index 
+       where 
+           {-# INLINE ans_index #-} 
+           ans_index (!ri, !colj) = let (g, h) = ((\(!c) -> m_index_f1 (ri, c), (\(!r) -> m_index_f2 (r, colj))))
+                                    in  (g, w1) !.! (h, w2) 
+
 
 instance (NFData (SparseData r D e)) where 
     {-# INLINE rnf #-}

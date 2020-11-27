@@ -40,21 +40,21 @@ instance (NFData e, Num e, Eq e, V.Unbox e) => Sparse DNS U e where
     data SparseData DNS U e = DNS { vals :: V.Vector e, width :: {-# UNPACK #-} !Int, height :: {-# UNPACK #-} !Int }
 
     {-# INLINE s_index #-}
-    s_index (DNS vals w _) (r, c) = vals V.! (r * w + c) 
+    s_index (DNS !vals !w _) (!r, !c) = let !i = (r * w + c) in vals V.! i   
     {-# INLINE s_dims #-}
-    s_dims (DNS vals w h)         = (w, h)
+    s_dims (DNS !vals !w !h)         = (w, h)
 
 
 instance (NFData e, Num e, Eq e, Sparse DNS D e, Sparse DNS U e) => Undelay DNS e where  
     {-# INLINE s_undelay #-}
-    s_undelay (SDelayed (h, w) func) = DNS vals w h 
+    s_undelay (SDelayed (!h, !w) func) = DNS vals w h 
       where 
           vals = v `deepseq` v     
           v    = unsafePerformIO $ do 
                              (vec :: VM.IOVector e) <- VM.new (w*h) 
-                             fillChunkedP (w*h) (VM.unsafeWrite vec) (\n -> let (!r, !c) = n `divMod` w in func (r, c))
-                             v  <- V.unsafeFreeze vec 
-                             return v 
+                             fillChunkedP (w*h) (VM.unsafeWrite vec) (\(!n) -> let (!r, !c) = n `divMod` w in func (r, c))
+                             v1  <- V.unsafeFreeze vec 
+                             return v1 
 
 
         -- vals = (V.unfoldrN (w * h) (\n -> let (r, c) =  n `divMod` w 

@@ -31,6 +31,8 @@ import SparseBlas.Data.Matrix.Parallel.Generic.Generic
       delay,
       empty,
       (#+),
+      (#*),
+      transpose, 
       scale ) 
 import Data.List (sort)
 
@@ -245,27 +247,141 @@ s_scalar_vec_transform alpha u t_mat =
         
         
 
--- 4. linear transformation composition
--- s_mult_mult_vec :: (Eq a
---                  , Ord a
---                  , NFData a
---                  , Sparse rep D a
---                  , Num a
---                  , Eq (SparseData rep D a)) 
---                => UVector.Vector a 
---                -> SparseData rep D a -> SparseData rep D a -> Bool 
--- s_mult_mult_vec vec a_mat b_mat = 
---    let 
---        (a_w, a_h)  = s_dims a_mat
---        (b_w, b_h)  = s_dims b_mat 
---        s_vec@(func, len) = from_vector vec 
---    in 
---        if or [a_h /= b_w
---             , vnull a_mat
---             , vnull b_mat
---             , b_w /= len] then True 
---        else ((a_mat #* b_mat) #. s_vec) 
---             `equals_i` (a_mat #. (b_mat #. s_vec))
+-- 4. matrix-matrix left distributivity 
+-- A (B + C) = AB + AC 
+s_mult_mult_ldistr :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                    => SparseData rep D a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_ldistr a_mat b_mat c_mat = 
+   let 
+       (a_w, a_h)  = s_dims a_mat
+       (b_w, b_h)  = s_dims b_mat 
+       (c_w, c_h)  = s_dims c_mat 
+   in 
+       if or [a_h /= b_w, b_w /= c_w, c_h /= a_h
+            , empty a_mat
+            , empty b_mat
+            , empty c_mat] then True 
+       else a_mat #* (b_mat #+ c_mat) == ((a_mat #* b_mat) #+ (a_mat #* c_mat)) 
+
+
+-- 5. matrix-matrix right distributivity 
+-- (B + C) D = BD + CD 
+s_mult_mult_rdistr :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                    => SparseData rep D a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_rdistr b_mat c_mat d_mat = 
+   let 
+       (b_w, b_h)  = s_dims b_mat
+       (c_w, c_h)  = s_dims c_mat 
+       (d_w, d_h)  = s_dims d_mat 
+   in 
+       if or [b_h /= c_w, c_w /= d_w, d_h /= b_h
+            , empty b_mat
+            , empty c_mat
+            , empty d_mat] then True 
+       else (b_mat #+ c_mat) #* d_mat == (b_mat #* d_mat) #+ (c_mat #* d_mat)
+
+
+-- 5. matrix-matrix left scalar product 
+-- c(AB) = (cA)B 
+s_mult_mult_lscalar :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                    => a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_lscalar c a_mat b_mat = 
+   let 
+       (b_w, b_h)  = s_dims b_mat
+       (a_w, a_h)  = s_dims a_mat 
+   in 
+       if or [b_h /= a_w, a_h /= b_w
+            , empty b_mat
+            , empty a_mat] then True 
+       else c `scale` (a_mat #* b_mat) == ((c `scale` a_mat) #* b_mat)
+
+
+
+-- 6. matrix-matrix right scalar product 
+-- (AB)c = A(Bc) 
+s_mult_mult_rscalar :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                    => a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_rscalar c a_mat b_mat = 
+   let 
+       (b_w, b_h)  = s_dims b_mat
+       (a_w, a_h)  = s_dims a_mat 
+       fscale      = flip scale 
+   in 
+       if or [b_h /= a_w, a_h /= b_w
+            , empty b_mat
+            , empty a_mat] then True 
+       else (a_mat #* b_mat) `fscale` c == a_mat #* (b_mat `fscale` c) 
+
+
+-- 7. transpose of matrix-matrix  
+-- (AB)^t = B^t A^t  
+s_mult_mult_trans :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                  => SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_trans a_mat b_mat = 
+   let 
+       (b_w, b_h)  = s_dims b_mat
+       (a_w, a_h)  = s_dims a_mat 
+   in 
+       if or [b_h /= a_w, a_h /= b_w
+            , empty b_mat
+            , empty a_mat] then True 
+       else transpose (a_mat #* b_mat) == ((transpose b_mat) #* (transpose a_mat))
+
+
+
+-- 7. associativity of matrix-matrix  
+-- (AB)C = A(BC)  
+s_mult_mult_assoc :: (Eq a
+                        , Ord a
+                        , NFData a
+                        , Sparse rep D a
+                        , Undelay rep a 
+                        , Num a
+                        , Eq (SparseData rep D a)) 
+                 => SparseData rep D a -> SparseData rep D a -> SparseData rep D a -> Bool 
+s_mult_mult_assoc a_mat b_mat c_mat = 
+   let 
+       (b_w, b_h)  = s_dims b_mat
+       (a_w, a_h)  = s_dims a_mat 
+       (c_w, c_h)  = s_dims c_mat
+   in 
+       if or [b_h /= a_w, a_h /= b_w, a_w /= c_w, a_h /= c_h
+            , empty b_mat
+            , empty a_mat
+            , empty c_mat] then True 
+       else (a_mat #* b_mat) #* c_mat == (a_mat #* (b_mat #* c_mat))
+
+
 
 
 

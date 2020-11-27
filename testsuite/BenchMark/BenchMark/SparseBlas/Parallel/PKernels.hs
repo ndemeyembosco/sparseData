@@ -138,6 +138,7 @@ smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2
 gemv :: (Sparse rep ty a, Floating a) 
      => a -> a -> SparseData rep ty a  -> SVector a 
      -> SVector a -> SVector a 
+{-# INLINE gemv #-}
 gemv alpha beta a x y = (alpha `scale` a #. x) !+! (beta !*! y) 
 
 
