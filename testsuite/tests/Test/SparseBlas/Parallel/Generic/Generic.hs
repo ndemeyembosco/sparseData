@@ -123,8 +123,7 @@ s_assoc_mult_vec_prop :: (Sparse rep D n n a
                       -> UVector.Vector a -> SparseData rep D n n a -> Bool  
 s_assoc_mult_vec_prop  w_vec' v_vec' a_mat = case (from_vector $ UVector.map (\_ -> fromInteger 1) w_vec'
                                                   , from_vector $ UVector.map (\_ -> fromInteger 1) v_vec') of 
-                                              (Just w_vec, Just v_vec) -> (a_mat #. (w_vec ^+^ v_vec)) `veq` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
-                                              _                        -> True 
+                                              (w_vec, v_vec) -> (a_mat #. (w_vec ^+^ v_vec)) `veq` ((a_mat #. w_vec) ^+^ (a_mat #. v_vec))
     where   
         (^+^)  = vzipWith (+)
 
@@ -138,10 +137,9 @@ s_distr_add_mult_vec_prop :: (Sparse rep D n1 n2 a
                           -> SparseData rep D n1 n2 a  
                           -> SparseData rep D n1 n2 a  -> Bool  
 s_distr_add_mult_vec_prop v_vec' a_mat b_mat = case from_vector v_vec' of 
-                                                Just v_vec -> ((a_mat #+ b_mat) #. v_vec) 
+                                                v_vec -> ((a_mat #+ b_mat) #. v_vec) 
                                                                     `veq` ((a_mat #. v_vec) 
                                                                             !+! (b_mat #. v_vec)) 
-                                                Nothing    -> True 
 
     
 -- 3. transform scalar vector multiplication
@@ -149,34 +147,66 @@ s_scalar_vec_transform :: (Sparse rep D n1 n2 a
                          , Eq (SparseData rep D n1 n2 a)) 
                        => a -> UVector.Vector a -> SparseData rep D n1 n2 a -> Bool
 s_scalar_vec_transform alpha u t_mat =  case (from_vector u, from_vector $ UVector.map (*alpha) u) of 
-                                          (Just vec, Just s_vec) -> (t_mat #. s_vec) `veq` (alpha `s_scale` (t_mat #. vec))
-                                          _                      -> True 
+                                          (vec, s_vec) -> (t_mat #. s_vec) `veq` (alpha `s_scale` (t_mat #. vec))
     where
         s_scale alpha  = vmap (*alpha)   
         
         
 
--- 4. linear transformation composition
--- s_mult_mult_vec :: (Eq a
---                  , Ord a
---                  , NFData a
---                  , Sparse rep D a
---                  , Num a
---                  , Eq (SparseData rep D a)) 
---                => UVector.Vector a 
---                -> SparseData rep D a -> SparseData rep D a -> Bool 
--- s_mult_mult_vec vec a_mat b_mat = 
---    let 
---        (a_w, a_h)  = s_dims a_mat
---        (b_w, b_h)  = s_dims b_mat 
---        s_vec@(func, len) = from_vector vec 
---    in 
---        if or [a_h /= b_w
---             , vnull a_mat
---             , vnull b_mat
---             , b_w /= len] then True 
---        else ((a_mat #* b_mat) #. s_vec) 
---             `equals_i` (a_mat #. (b_mat #. s_vec))
+-- 4. matrix-matrix left distributivity 
+-- A (B + C) = AB + AC 
+s_mult_mult_ldistr :: (Sparse rep D n1 n2 a, Sparse rep D n2 n3 a 
+                    , Eq (SparseData rep D n1 n3 a)) 
+                    => SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> SparseData rep D n2 n3 a -> Bool 
+s_mult_mult_ldistr a_mat b_mat c_mat =  a_mat #* (b_mat #+ c_mat) == ((a_mat #* b_mat) #+ (a_mat #* c_mat)) 
+
+
+-- 5. matrix-matrix right distributivity 
+-- (B + C) D = BD + CD 
+s_mult_mult_rdistr :: (Sparse rep D n1 n2 a, Sparse rep D n2 n3 a 
+                        , Eq (SparseData rep D n1 n3 a)) 
+                    => SparseData rep D n1 n2 a -> SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> Bool 
+s_mult_mult_rdistr b_mat c_mat d_mat =  (b_mat #+ c_mat) #* d_mat == (b_mat #* d_mat) #+ (c_mat #* d_mat)
+
+
+-- 6. matrix-matrix left scalar product 
+-- c(AB) = (cA)B 
+s_mult_mult_lscalar :: (Sparse rep D n1 n2 a, Sparse rep D n2 n3 a 
+                        , Eq (SparseData rep D n1 n3 a)) 
+                    => a -> SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> Bool 
+s_mult_mult_lscalar c a_mat b_mat = c `scale` (a_mat #* b_mat) == ((c `scale` a_mat) #* b_mat)
+
+
+
+-- 7. matrix-matrix right scalar product 
+-- (AB)c = A(Bc) 
+s_mult_mult_rscalar :: (Sparse rep D n1 n2 a, Sparse rep D n2 n3 a 
+                        , Eq (SparseData rep D n1 n3 a)) 
+                    => a -> SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> Bool 
+s_mult_mult_rscalar c a_mat b_mat = (a_mat #* b_mat) `fscale` c == a_mat #* (b_mat `fscale` c) 
+     where 
+         fscale :: (Sparse r ty n3 n4 a, Num a) => SparseData r ty n3 n4 a -> a -> SparseData r D n3 n4 a 
+         fscale = flip scale 
+        
+
+-- 8. transpose of matrix-matrix  
+-- (AB)^t = B^t A^t  
+s_mult_mult_trans :: (Sparse rep D n1 n2 a, 
+                      Sparse rep D n2 n3 a, 
+                      Eq (SparseData rep D n3 n1 a)) 
+                  => SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> Bool 
+s_mult_mult_trans a_mat b_mat = transpose (a_mat #* b_mat) == ((transpose b_mat) #* (transpose a_mat))
+
+
+
+-- 9. associativity of matrix-matrix  
+-- (AB)C = A(BC)  
+s_mult_mult_assoc :: (Sparse rep D n1 n2 a
+                      , Sparse rep D n2 n3 a 
+                      , Sparse rep D n3 n4 a 
+                    , Eq (SparseData rep D n1 n4 a)) 
+                 => SparseData rep D n1 n2 a -> SparseData rep D n2 n3 a -> SparseData rep D n3 n4 a -> Bool 
+s_mult_mult_assoc a_mat b_mat c_mat = (a_mat #* b_mat) #* c_mat == (a_mat #* (b_mat #* c_mat))
 
 
 
@@ -192,5 +222,4 @@ s_vec_test :: forall a n. (KnownNat n, Eq a, Num a, NFData a, UVector.Unbox a) =
 s_vec_test vec = ans 
     where 
         ans = case from_vector vec of 
-                    Just v  -> (to_vector (v :: SVector n a)) == vec
-                    Nothing -> True 
+                    v  -> (to_vector (v :: SVector n a)) == vec

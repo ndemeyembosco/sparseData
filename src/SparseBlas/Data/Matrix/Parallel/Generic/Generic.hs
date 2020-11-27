@@ -17,16 +17,20 @@ import Data.Array.Repa.Eval (fillChunkedP)
 import System.IO.Unsafe (unsafePerformIO)
 import GHC.TypeLits 
 import Data.Proxy 
+import Control.Exception 
+
+data SparseException = InvalidVectorLength 
+                     | NullVector 
+                     | FromVecLengthMismatch 
+                     deriving Show 
+
+instance Exception SparseException 
 
 
 
 data RepIndex = U | D 
 
 newtype SVector (n :: Nat) a = F (Int -> a)
-
--- data SVector (n :: Nat) a where 
---     F   :: (Int -> a) -> SVector n a 
---     Z   :: SVector n a 
 
 
 to_vector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.Vector a 
@@ -54,13 +58,13 @@ from_vector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (K
 {-# INLINE from_vector #-}
 from_vector !vec = let !len = V.length vec 
                    in case someNatVal (toInteger len) of 
-                        Nothing -> error "(from_vector): invalid length of vector!"  
+                        Nothing -> throw InvalidVectorLength 
                         Just l  -> if l == (SomeNat (Proxy :: Proxy n)) 
                                    then if V.null vec 
-                                        then error "(from_vector) : instance of null vector!"
+                                        then throw NullVector 
                                         else (F ((V.!) vec) :: SVector l a) 
                                    else 
-                                       error "(from_vector): length mismatch in returned!"
+                                       throw FromVecLengthMismatch 
 
 
 vmap ::  (KnownNat n, NFData a, V.Unbox a) => (a -> b) -> SVector n a -> SVector n b
@@ -184,12 +188,14 @@ manifest_convert  = s_undelay . convert . delay
 
 
 
+-- used mainly for tests
+empty :: forall n1 n2 a r ty. (KnownNat n1, KnownNat n2, Sparse r ty n1 n2 a) => SparseData r ty n1 n2 a -> Bool 
+{-# INLINE empty #-}
+empty mat = let 
+              z1 = fromIntegral $ natVal (Proxy :: Proxy n1)
+              z2 = fromIntegral $ natVal (Proxy :: Proxy n2)
+            in and [z1 == 0, z2 == 0]
 
--- empty :: (Sparse r ty a, Undelay r a) => SparseData r ty a -> Bool 
--- {-# INLINE empty #-}
--- empty mat = (0, 0) == (s_dims mat) || (V.null $ non_zeros $ s_undelay dmat)
---      where 
---        dmat = delay mat 
 
 -- -- -------------- Polymorphic -----------------------------------------------
 
