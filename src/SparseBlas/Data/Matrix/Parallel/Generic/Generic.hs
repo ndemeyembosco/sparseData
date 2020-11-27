@@ -122,6 +122,9 @@ class (NFData e, Num e, Eq e, V.Unbox e, KnownNat n1, KnownNat n2) => Sparse r (
     (#.)      :: SparseData r ty n1 n2 e -> SVector n2 e -> SVector n1 e 
     {-# INLINE (#.) #-}
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
+    {-# INLINE (#*) #-}
+    (#*)      :: (Sparse r ty n2 n3 e) => SparseData r ty n1 n2 e -> SparseData r ty n2 n3 e -> SparseData r D n1 n3 e 
+    (#*) !mat1 !mat2  = let (!delayed_mat1, !delayed_mat2) = (delay mat1, delay mat2) in delayed_mat1 #* delayed_mat2  
 
 class (Sparse r D n1 n2 e, Sparse r U n1 n2 e) => Undelay r n1 n2 e where 
     s_undelay :: SparseData r D n1 n2 e      -> SparseData r U n1 n2 e 
@@ -141,6 +144,12 @@ instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Sparse 
        where 
            {-# INLINE dots #-}
            dots !ri = let g = (curry m_index_f) ri in (F g) !.! v 
+    {-# INLINE (#*) #-}
+    (#*) (SDelayed m_index_f1) (SDelayed m_index_f2) = SDelayed ans_index 
+       where 
+           {-# INLINE ans_index #-} 
+           ans_index (!ri, !colj) = let (g, h) = ((\(!c) -> m_index_f1 (ri, c), (\(!r) -> m_index_f2 (r, colj))))
+                                    in  (F g :: SVector n2 e) !.! (F h :: SVector n2 e)   
 
 instance (KnownNat n1, KnownNat n2) => (NFData (SparseData r D n1 n2 e)) where 
     {-# INLINE rnf #-}
