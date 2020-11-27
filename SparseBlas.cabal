@@ -146,11 +146,12 @@ executable SparseBlas-par
 
   -- Modules included in this executable, other than Main.
   other-modules:      SparseBlas.Data.Matrix.Parallel.Generic.Generic, 
-                      SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
-                      SparseBlas.Data.Matrix.Parallel.Sparse.COO,
-                      SparseBlas.Data.Matrix.Parallel.Sparse.CSR, 
-                      SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
-                      SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
+                      SparseBlas.Data.Matrix.Parallel.Dense.DENSE
+                      -- ,
+                      -- SparseBlas.Data.Matrix.Parallel.Sparse.COO,
+                      -- SparseBlas.Data.Matrix.Parallel.Sparse.CSR, 
+                      -- SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
+                      -- SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
 
   -- LANGUAGE extensions used by modules in this package.
   other-extensions:    GADTs, 
@@ -371,24 +372,8 @@ executable SparseBlas-bench-parallel
 
   other-modules:       SparseBlas.Data.Matrix.Parallel.Dense.DENSE,
                        SparseBlas.Data.Matrix.Parallel.Generic.Generic
-                      --  ,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.COO,
-                      --  BenchMark.SparseBlas.Parallel.Sparse.Big.COO,
-                      --  BenchMark.SparseBlas.Parallel.Sparse.Big.CSR,
-                      --  BenchMark.SparseBlas.Parallel.Sparse.Big.ELL,
-                      --  BenchMark.SparseBlas.Parallel.Sparse.Big.CSC,
-                      --  BenchMark.SparseBlas.Parallel.Dense.Big.DENSE,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.CSC,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.CSR,
-                      --  SparseBlas.Data.Matrix.Parallel.Sparse.ELL,
-                      --  Util.DataLoaderSmall,
-                      --  Util.Parser.MMParser,
-                      --  Util.DataLoader,
-                      --  BenchMark.SparseBlas.Parallel.PKernels,
-                      --  SparseBlas.Data.Matrix.Generic.Generic,
-                      --  SparseBlas.Data.Matrix.Sparse.COO
 
-  ghc-options: -O2 -threaded -eventlog -rtsopts  -main-is BenchMark.SparseBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
+  ghc-options: -O2 -threaded -eventlog -rtsopts -main-is BenchMark.SparseBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
 
   -- Test dependencies.
   build-depends:       base >=4.13.0.0, 

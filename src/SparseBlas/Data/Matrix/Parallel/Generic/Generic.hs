@@ -9,8 +9,6 @@ module SparseBlas.Data.Matrix.Parallel.Generic.Generic where
 import qualified Data.Vector.Unboxed as V 
 import qualified Data.Vector.Unboxed.Mutable as VM 
 import qualified Data.Vector as VB 
-import Control.Parallel.Strategies ( NFData, using )
-import Data.Vector.Strategies ( parVector )
 import Prelude hiding (map, zipWith)
 import Control.DeepSeq 
 import GHC.Conc (numCapabilities)
@@ -24,58 +22,42 @@ import Data.Proxy
 
 data RepIndex = U | D 
 
-data SVector (n :: Nat) a where 
-    F   :: (Int -> a) -> SVector n a 
-    Z   :: SVector n a 
+newtype SVector (n :: Nat) a = F (Int -> a)
+
+-- data SVector (n :: Nat) a where 
+--     F   :: (Int -> a) -> SVector n a 
+--     Z   :: SVector n a 
 
 
 to_vector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.Vector a 
 {-# INLINE to_vector #-}
-to_vector f = ans  
+to_vector (F f) = vals   
        where 
-          !ans  = case f of 
-              Z      -> V.fromList [] 
-              F func -> vals 
-                where 
-                        vals = v `deepseq` v    
-                        !len  = fromIntegral $ natVal (Proxy :: Proxy n)
-                        -- v    = V.generate len func 
-                        v    = unsafePerformIO $ do 
-                                            (vec :: VM.IOVector e) <- VM.new len   
-                                            fillChunkedP len (VM.unsafeWrite vec) func  
-                                            v1  <- V.unsafeFreeze vec 
-                                            return v1 
+            vals = v `deepseq` v    
+            !len  = fromIntegral $ natVal (Proxy :: Proxy n)
+            -- v    = V.generate len func 
+            v    = unsafePerformIO $ do 
+                                (vec :: VM.IOVector e) <- VM.new len   
+                                fillChunkedP len (VM.unsafeWrite vec) f 
+                                v1  <- V.unsafeFreeze vec 
+                                return v1 
 
 instance (KnownNat n, NFData a, V.Unbox a, Show a) => Show (SVector n a) where 
     show v@(F f) = show $ to_vector v 
-    show Z       = "[]" 
 
 
-from_null :: (NFData a, V.Unbox a) => V.Vector a -> Maybe (SVector 0 a) 
-from_null v = if V.null v then Just Z else Nothing   
+-- from_null :: (NFData a, V.Unbox a) => V.Vector a -> Maybe (SVector 0 a) 
+-- from_null v = if V.null v then Just Z else Nothing   
 
 
-from_vector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => Maybe (SVector n1 a)) 
+from_vector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
 {-# INLINE from_vector #-}
-from_vector !vec = let len = V.length vec 
-                   in case someNatVal (toInteger len) of 
-                        Nothing -> Nothing  
-                        Just l  -> if l == (SomeNat (Proxy :: Proxy n)) 
-                                   then if V.null vec 
-                                        then Just (Z :: SVector l a) 
-                                        else Just (F ((V.!) vec) :: SVector l a) 
-                                   else 
-                                       Nothing 
-
-
-from_vector' :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
-{-# INLINE from_vector' #-}
-from_vector' !vec = let len = V.length vec 
+from_vector !vec = let !len = V.length vec 
                    in case someNatVal (toInteger len) of 
                         Nothing -> error "(from_vector): invalid length of vector!"  
                         Just l  -> if l == (SomeNat (Proxy :: Proxy n)) 
                                    then if V.null vec 
-                                        then (Z :: SVector l a) 
+                                        then error "(from_vector) : instance of null vector!"
                                         else (F ((V.!) vec) :: SVector l a) 
                                    else 
                                        error "(from_vector): length mismatch in returned!"
@@ -109,7 +91,7 @@ vzipWith f (F g) (F h) = F (\i -> f (g i) (h i))
 
 vsum :: forall n a. (KnownNat n, NFData a, Num a, V.Unbox a) => SVector n a -> a 
 {-# INLINE vsum #-}
-vsum (F f) = let len = fromIntegral $ natVal (Proxy :: Proxy n) 
+vsum (F f) = let !len = fromIntegral $ natVal (Proxy :: Proxy n) 
              in  V.foldl' (\n i -> let !m = f i in n + m) 0 $ V.enumFromN 0 (len - 1) -- add parallelism 
 
 -- vsum' :: (NFData a, Num a, V.Unbox a) => SVector a -> a 
@@ -200,7 +182,7 @@ manifest_convert  = s_undelay . convert . delay
 --      where 
 --        dmat = delay mat 
 
--- -------------- Polymorphic -----------------------------------------------
+-- -- -------------- Polymorphic -----------------------------------------------
 
 map :: Sparse r ty n1 n2 e => (e -> b) -> SparseData r ty n1 n2 e -> SparseData r D n1 n2 b 
 {-# INLINE map #-}

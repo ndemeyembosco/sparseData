@@ -15,10 +15,15 @@ import           Text.Parsec.String     (Parser, parseFromFile)
 
 
 import SparseBlas.Data.Matrix.Parallel.Generic.Generic 
-import SparseBlas.Data.Matrix.Parallel.Sparse.COO
-import SparseBlas.Data.Matrix.Parallel.Sparse.CSR
-import SparseBlas.Data.Matrix.Parallel.Sparse.ELL  
-import SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
+import SparseBlas.Data.Matrix.Parallel.Dense.DENSE 
+
+
+
+
+-- import SparseBlas.Data.Matrix.Parallel.Sparse.COO
+-- import SparseBlas.Data.Matrix.Parallel.Sparse.CSR
+-- import SparseBlas.Data.Matrix.Parallel.Sparse.ELL  
+-- import SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
 
 -- cg :: (Num a, Sparse rep ty a, U.Unbox a, Eq a, Floating a) => Int -> SVector a -> SparseData rep ty a ->  SVector a -> (a, SVector a)
 -- {-# INLINE cg #-}

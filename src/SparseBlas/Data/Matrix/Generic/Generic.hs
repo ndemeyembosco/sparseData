@@ -5,10 +5,8 @@
            , UndecidableInstances, DataKinds #-}
 
 module SparseBlas.Data.Matrix.Generic.Generic where 
-
+import Control.DeepSeq 
 import qualified Data.Vector as VU 
-import Data.Vector.Strategies  (parVector)
-import Control.Parallel.Strategies (using, NFData)
 import qualified Data.Vector.Unboxed as U  
 import Prelude hiding (map, zipWith)
 
@@ -102,8 +100,8 @@ instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse r D e where
     (#.) (SDelayed (!w, !h) m_index_f) v@(_, !len) = ((VU.!) part_sums, len)
        where 
          r_funcs   = (VU.map (\ri -> ((curry m_index_f) ri, w)) 
-                           $ VU.enumFromN 0 h) `using` (parVector 2)  
-         part_sums = (VU.map (\(g, w) -> (g, w) !.! v) r_funcs) `using` (parVector 2)
+                           $ VU.enumFromN 0 h)  
+         part_sums = (VU.map (\(g, w) -> (g, w) !.! v) r_funcs) 
 
 
 

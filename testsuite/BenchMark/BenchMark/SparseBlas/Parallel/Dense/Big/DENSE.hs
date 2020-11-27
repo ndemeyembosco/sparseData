@@ -64,10 +64,8 @@ bench_dns_big = do
    print "timer initialized!"
    genTimeStart <- getCPUTime
    print ("generation start time: " ++ show genTimeStart)
-
    let  
-       m  = let dim = fromJust $ someNatVal $ toInteger dimension 
-            in  (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: SparseData DNS U 10000 10000 Double)
+       m  = (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: SparseData DNS U 10000 10000 Double)
        (v1 :: UNB.Vector Double) = UNB.replicate dimension 1.0 
        (v2 :: UNB.Vector Double) = UNB.replicate dimension 1.0   
    m `deepseq` v1 `deepseq` v2 `deepseq` genTimeStart `seq` return ()
@@ -80,8 +78,8 @@ bench_dns_big = do
    print ("total random generation time: " ++ show diff1 ++ "\n")
 
    let 
-       v_func1  = from_vector' v1
-       v_func2  = from_vector' v2 
+       v_func1  = from_vector v1
+       v_func2  = from_vector v2 
    print "doing bench dns!"
 
    

@@ -25,23 +25,7 @@ import BenchMark.SparseBlas.Parallel.Dense.Big.DENSE
 import Data.Maybe
 import System.Random.PCG
 import Control.DeepSeq (deepseq)
-import Control.Monad.ST 
-
-
--- genRandMatrixPCG :: Variate a => Int -> Int -> SparseData DNS U a 
--- genRandMatrixPCG width height = runST $ do 
---     gen    <- create 
---     to_ret <- mapM (\_ -> uniform gen >>= \a -> return a) $ U.enumFromN 0 (width * height)
---     return $ DNS to_ret width height 
-
-
--- genRandMatricesPCG :: Variate a => [(Int, Int)] -> [SparseData DNS U a] 
--- genRandMatricesPCG = Prelude.map (\(w, h) -> genRandMatrixPCG w h) 
-
-
--- sparse_matrify :: M.Map String MMExchange 
---                -> M.Map String (SparseData COO U Double)
--- sparse_matrify dict = M.map mm_to_s_data_p dict  
+import Control.Monad.ST  
 
 config :: Config
 config = defaultConfig 
@@ -56,14 +40,11 @@ main :: IO ()
 main = do
       print "starting dense benchmark"
       bench_dns_big  
-
     --   bench_csr_big  
     --   bench_ell_big 
     --   bench_csc_big  
     --   let (v1, v2, v3, v4, v5) = deepseq ans ans 
-    --   print $ U.length $ v1
-    --   print $ U.length $ v2
-    --   print $ U.length $ v3
-    --   print $ U.length $ v4
-    --   print $ U.length $ v5  
       return ()
+
+
+

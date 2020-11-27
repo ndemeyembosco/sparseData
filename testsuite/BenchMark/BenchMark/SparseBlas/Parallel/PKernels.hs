@@ -132,9 +132,7 @@ smvm_xpy :: (Sparse rep ty n n a, Floating a)
 smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2 
    where 
      smat           = delay mat 
-     (svec1, svec2) = case (from_vector vec1, from_vector vec2) of 
-                          (Just v1, Just v2) -> (v1, v2)
-                          _                  -> error "should provide non-empty vector to smvm_xpy!"
+     (svec1, svec2) = (from_vector vec1, from_vector vec2) 
      (^+^)          = vzipWith (+)
 
 
@@ -142,6 +140,7 @@ smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2
 gemv :: (Sparse rep ty n n a, Floating a) 
      => a -> a -> SparseData rep ty n n a  -> SVector n a 
      -> SVector n a -> SVector n a 
+{-# INLINE gemv #-}
 gemv alpha beta a x y = (alpha `scale` a #. x) !+! (beta !*! y) 
 
 
