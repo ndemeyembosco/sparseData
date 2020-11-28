@@ -27,7 +27,7 @@ instance (Arbitrary (SparseData O.COO U n1 n2 e), Undelay D.DNS n1 n2 e)
 test_dense :: IO () 
 test_dense = do 
     print "testing DNS ... \n\n"
-    print "undelay . delay = id : \n"
+    -- print "undelay . delay = id : \n"
     quickCheckWith (stdArgs {maxSuccess=100}) -- more than one will cause nested data parallelism error 
                     (s_convert_test :: SparseData D.DNS U 10 10 Int -> Bool)
 
@@ -71,4 +71,41 @@ test_dense = do
                     (s_scalar_vec_transform :: Int
                                     -> UVector.Vector Int 
                                     -> SparseData D.DNS D 100 100 Int -> Bool)
+
+    print "A (B + C) = AB + AC: \n"
+    quickCheckWith (stdArgs {maxSuccess=500})
+                   (s_mult_mult_ldistr :: SparseData D.DNS D 10 10 Int 
+                                       -> SparseData D.DNS D 10 10 Int
+                                       -> SparseData D.DNS D 10 10 Int 
+                                       -> Bool)
+
+    print "(B + C) D = BD + CD: \n"
+    quickCheckWith (stdArgs {maxSuccess=500})
+                   (s_mult_mult_rdistr :: SparseData D.DNS D 10 10 Int 
+                                       -> SparseData D.DNS D 10 10 Int
+                                       -> SparseData D.DNS D 10 10 Int 
+                                       -> Bool)
+    print "c(AB) = (cA)B: \n" 
+    quickCheckWith (stdArgs {maxSuccess=500}) 
+                   (s_mult_mult_lscalar :: Int 
+                                        -> SparseData D.DNS D 10 10 Int 
+                                        -> SparseData D.DNS D 10 10 Int 
+                                        -> Bool)
+    print "(AB)c = A(Bc): \n"
+    quickCheckWith (stdArgs {maxSuccess=500})
+                   (s_mult_mult_rscalar :: Int 
+                                        -> SparseData D.DNS D 10 10 Int 
+                                        -> SparseData D.DNS D 10 10 Int 
+                                        -> Bool)
+    print "(AB)^t = B^t A^t: \n"
+    quickCheckWith (stdArgs {maxSuccess=500})
+                   (s_mult_mult_trans :: SparseData D.DNS D 10 10 Int 
+                                      -> SparseData D.DNS D 10 10 Int 
+                                      -> Bool)
+    print "(AB)C = A(BC) : \n"
+    quickCheckWith (stdArgs {maxSuccess=500}) 
+                   (s_mult_mult_assoc :: SparseData D.DNS D 10 10 Int 
+                                      -> SparseData D.DNS D 10 10 Int 
+                                      -> SparseData D.DNS D 10 10 Int 
+                                      -> Bool)
     return ()
