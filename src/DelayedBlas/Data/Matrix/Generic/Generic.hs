@@ -4,7 +4,7 @@
            , AllowAmbiguousTypes, ScopedTypeVariables 
            , UndecidableInstances, DataKinds #-}
 
-module SparseBlas.Data.Matrix.Generic.Generic where 
+module DelayedBlas.Data.Matrix.Generic.Generic where 
 import Control.DeepSeq 
 import qualified Data.Vector as VU 
 import qualified Data.Vector.Unboxed as U  
@@ -74,24 +74,24 @@ veq !vec1 !vec2 = U.foldr (&&) True $! U.zipWith
 
 
 
-class (U.Unbox e, Num e, Eq e, NFData e) => Sparse r (ty :: RepIndex) e where 
-    data SparseData r (ty :: RepIndex) e :: * 
-    s_index   :: SparseData r ty e -> (Int, Int) -> e 
-    s_dims    :: SparseData r ty e -> (Int, Int) 
+class (U.Unbox e, Num e, Eq e, NFData e) => Matrix r (ty :: RepIndex) e where 
+    data MatrixData r (ty :: RepIndex) e :: * 
+    s_index   :: MatrixData r ty e -> (Int, Int) -> e 
+    s_dims    :: MatrixData r ty e -> (Int, Int) 
     -- By default matVec 
-    (#.)      :: Num e => SparseData r ty e -> SVector e -> SVector e 
+    (#.)      :: Num e => MatrixData r ty e -> SVector e -> SVector e 
     {-# INLINE (#.) #-}
     (#.) !mat !vec  = let delayed_mat = delay mat in delayed_mat #. vec
 
-class (Sparse r D e, Sparse r U e) => Undelay r e where 
-    s_undelay :: SparseData r D e -> SparseData r U e 
-    non_zeros :: SparseData r U e      -> U.Vector e 
+class (Matrix r D e, Matrix r U e) => Undelay r e where 
+    s_undelay :: MatrixData r D e -> MatrixData r U e 
+    non_zeros :: MatrixData r U e      -> U.Vector e 
     
 
 
 
-instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse r D e where 
-    data SparseData r D e         = SDelayed (Int, Int) ((Int, Int) -> e) 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Matrix r D e where 
+    data MatrixData r D e         = SDelayed (Int, Int) ((Int, Int) -> e) 
     {-# INLINE s_index #-}
     s_index (SDelayed _ f) (!r, !c) = f (r, c) 
     {-# INLINE s_dims #-}
@@ -105,8 +105,8 @@ instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse r D e where
 
 
 
---instance (Eq e, Num e, Sparse r U e
---              , Sparse r2 U e, r ~ r2, U.Unbox e) => Eq (SparseData COO U e) where 
+--instance (Eq e, Num e, Matrix r U e
+--              , Matrix r2 U e, r ~ r2, U.Unbox e) => Eq (MatrixData COO U e) where 
 --    arr1 == arr2 = (and_v v_vec) == (U.length v_vec)    
 --           where 
 --            v_vec        = vals_vec mat
@@ -117,12 +117,12 @@ instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse r D e where
 --            vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
 
 
-delay :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e 
+delay :: (Matrix r ty e, U.Unbox e) => MatrixData r ty e -> MatrixData r D e 
 {-# INLINE delay #-}
 delay arr = SDelayed (s_dims arr) (s_index arr)
 
 
-transpose :: (Sparse r ty e, U.Unbox e) => SparseData r ty e -> SparseData r D e
+transpose :: (Matrix r ty e, U.Unbox e) => MatrixData r ty e -> MatrixData r D e
 {-# INLINE transpose #-}
 transpose mat = let 
                     (w, h) = s_dims mat 
@@ -130,14 +130,14 @@ transpose mat = let
                 in SDelayed (h, w) (new_index_func mat) 
 
 
-convert :: (Sparse r1 D e, Sparse r2 D e) 
-        => SparseData r1 D e -> SparseData r2 D e 
+convert :: (Matrix r1 D e, Matrix r2 D e) 
+        => MatrixData r1 D e -> MatrixData r2 D e 
 {-# INLINE convert #-}
 convert (SDelayed (w, h) func) = (SDelayed (w, h) func)  
 
 
 manifest_convert :: (Undelay r1 e, Undelay r2 e) 
-                 => SparseData r1 U e -> SparseData r2 U e 
+                 => MatrixData r1 U e -> MatrixData r2 U e 
 {-# INLINE manifest_convert #-}
 manifest_convert  = s_undelay . convert . delay   
 
@@ -145,7 +145,7 @@ manifest_convert  = s_undelay . convert . delay
 
 
 
-empty :: (Sparse r ty a, Undelay r a) => SparseData r ty a -> Bool 
+empty :: (Matrix r ty a, Undelay r a) => MatrixData r ty a -> Bool 
 {-# INLINE empty #-}
 empty mat = (0, 0) == (s_dims mat) || (U.null $ non_zeros $ s_undelay dmat)
      where 
@@ -153,16 +153,16 @@ empty mat = (0, 0) == (s_dims mat) || (U.null $ non_zeros $ s_undelay dmat)
 
 -------------- Polymorphic -----------------------------------------------
 
-map :: Sparse r ty e => (e -> b) -> SparseData r ty e -> SparseData r D b 
+map :: Matrix r ty e => (e -> b) -> MatrixData r ty e -> MatrixData r D b 
 {-# INLINE map #-}
 map f !arr = case delay arr of 
     SDelayed (w, h) g -> SDelayed (w, h) (f . g) 
 
 
 
-zipWith :: (Sparse r ty a, Sparse r1 ty1 b, r ~ r1, ty ~ ty1) 
-        => (a -> b -> c) -> SparseData r ty a 
-        -> SparseData r1 ty1 b -> SparseData r D c  
+zipWith :: (Matrix r ty a, Matrix r1 ty1 b, r ~ r1, ty ~ ty1) 
+        => (a -> b -> c) -> MatrixData r ty a 
+        -> MatrixData r1 ty1 b -> MatrixData r D c  
 {-# INLINE zipWith #-}
 zipWith f !arr1 !arr2 = SDelayed (w1, h1) get 
    where 
@@ -171,8 +171,8 @@ zipWith f !arr1 !arr2 = SDelayed (w1, h1) get
      {-# INLINE get #-}
      get val              = f (f1 val) (f2 val)
 
--- (#*) :: (Sparse r ty a, Num a) 
---     => SparseData r ty a -> SparseData r ty a -> SparseData r D a
+-- (#*) :: (Matrix r ty a, Num a) 
+--     => MatrixData r ty a -> MatrixData r ty a -> MatrixData r D a
 -- (#*) !a_mat !b_mat = SDelayed (a_w, b_h) get 
 --   where 
 --     mat1@(SDelayed  (a_w, a_h) f1) = delay a_mat 
@@ -185,31 +185,31 @@ zipWith f !arr1 !arr2 = SDelayed (w1, h1) get
 
 
 
-(#+) :: (Sparse r ty a, Num a) 
-     => SparseData r ty a -> SparseData r ty a -> SparseData r D a
+(#+) :: (Matrix r ty a, Num a) 
+     => MatrixData r ty a -> MatrixData r ty a -> MatrixData r D a
 {-# INLINE (#+) #-}
 (#+) = zipWith (+)
 
 
-add :: (Sparse r ty a, Num a) 
-    => SparseData r ty a -> SparseData r ty a -> SparseData r D a 
+add :: (Matrix r ty a, Num a) 
+    => MatrixData r ty a -> MatrixData r ty a -> MatrixData r D a 
 {-# INLINE add #-}
 add = (#+)
 
 
-(#-) :: (Sparse r ty a, Num a) 
-     => SparseData r ty a -> SparseData r ty a -> SparseData r D a 
+(#-) :: (Matrix r ty a, Num a) 
+     => MatrixData r ty a -> MatrixData r ty a -> MatrixData r D a 
 {-# INLINE (#-) #-}
 (#-) = zipWith (-)
 
 
-minus :: (Sparse r ty a, Num a) 
-      => SparseData r ty a -> SparseData r ty a -> SparseData r D a
+minus :: (Matrix r ty a, Num a) 
+      => MatrixData r ty a -> MatrixData r ty a -> MatrixData r D a
 {-# INLINE minus #-}
 minus = (#-)
 
-scale :: (Sparse r ty a, Num a) 
-      => a -> SparseData r ty a -> SparseData r D a 
+scale :: (Matrix r ty a, Num a) 
+      => a -> MatrixData r ty a -> MatrixData r D a 
 {-# INLINE scale #-}
 scale !n = map (* n)
 

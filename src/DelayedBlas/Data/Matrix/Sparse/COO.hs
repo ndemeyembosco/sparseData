@@ -8,16 +8,16 @@
            , UndecidableInstances, DataKinds, Strict, StrictData #-}
 
 
-module SparseBlas.Data.Matrix.Sparse.COO where 
+module DelayedBlas.Data.Matrix.Sparse.COO where 
 
 import qualified Data.Vector.Unboxed as U 
 import Prelude hiding (zipWith)
 import Control.Parallel.Strategies (NFData)
 
-import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+import DelayedBlas.Data.Matrix.Generic.Generic as DGeneric
     ( Undelay(..),
-      Sparse(s_dims, s_index, SparseData),
-      SparseData(SDelayed),
+      Matrix(s_dims, s_index, MatrixData),
+      MatrixData(SDelayed),
       RepIndex(D, U),
       delay,
       transpose,
@@ -34,8 +34,8 @@ import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
 
 data COO 
 --------------- COO ------------------------
-instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse COO U e where 
-    data SparseData COO U e   = COO 
+instance (U.Unbox e, Num e, Eq e, NFData e) => Matrix COO U e where 
+    data MatrixData COO U e   = COO 
                         {  coo_vals :: U.Vector (e, Int, Int)
                            ,  width :: Int
                            , height :: Int
@@ -48,7 +48,7 @@ instance (U.Unbox e, Num e, Eq e, NFData e) => Sparse COO U e where
                 Just (a1, _, _) -> a1
     s_dims (COO vals w h) = (w, h)
     
-instance (U.Unbox e, Num e, Eq e, Sparse COO D e, Sparse COO U e) => Undelay COO e where  
+instance (U.Unbox e, Num e, Eq e, Matrix COO D e, Matrix COO U e) => Undelay COO e where  
     s_undelay (SDelayed (h, w) func) = COO vals w h 
       where 
         vals_r r = U.unfoldrN w (\c -> 
@@ -61,26 +61,26 @@ instance (U.Unbox e, Num e, Eq e, Sparse COO D e, Sparse COO U e) => Undelay COO
                       
 
 
-instance (Undelay COO e) => Eq (SparseData COO U e) where 
+instance (Undelay COO e) => Eq (MatrixData COO U e) where 
     arr1 == arr2 = (and_v v_vec) == fromIntegral (U.length v_vec)    
            where 
             v_vec        = vals_vec mat 
             and_v  l     = U.foldr (+) 0 l   
             mat          = let 
-                             (interm :: SparseData COO D e) =  SparseBlas.Data.Matrix.Sparse.COO.zipWith (\x y -> 
+                             (interm :: MatrixData COO D e) =  DelayedBlas.Data.Matrix.Sparse.COO.zipWith (\x y -> 
                                                                           if x == y 
                                                                           then fromInteger 1 
                                                                           else 0) arr1 arr2
-                           in (s_undelay :: SparseData COO D e -> SparseData COO U e) interm  
+                           in (s_undelay :: MatrixData COO D e -> MatrixData COO U e) interm  
             vals_vec m   = U.map (\(a, _, _) -> a) (coo_vals m)
 
 
-instance (Undelay COO e, Eq (SparseData COO U e)) => Eq (SparseData COO D e) where 
+instance (Undelay COO e, Eq (MatrixData COO U e)) => Eq (MatrixData COO D e) where 
     arr1 == arr2 = (s_undelay arr1) == (s_undelay arr2)
     
 
-instance (Show e, Undelay COO e, Sparse COO ty e) => Show (SparseData COO ty e) where 
-  show arr = let darr = SparseBlas.Data.Matrix.Sparse.COO.delay arr in 
+instance (Show e, Undelay COO e, Matrix COO ty e) => Show (MatrixData COO ty e) where 
+  show arr = let darr = DelayedBlas.Data.Matrix.Sparse.COO.delay arr in 
              case s_undelay darr of 
                COO vs w h ->  unlines ["COO", "\n"
                                             , "________"
@@ -90,44 +90,44 @@ instance (Show e, Undelay COO e, Sparse COO ty e) => Show (SparseData COO ty e) 
                                             , "\n", show vs]
 
 
-delay :: (U.Unbox e, Num e, Eq e, Sparse COO ty e) => SparseData COO ty e -> SparseData COO D e 
-delay = SGeneric.delay
+delay :: (U.Unbox e, Num e, Eq e, Matrix COO ty e) => MatrixData COO ty e -> MatrixData COO D e 
+delay = DGeneric.delay
 
 
-transpose :: (U.Unbox e, Sparse COO ty e) 
-          => SparseData COO ty e -> SparseData COO D e
-transpose = SGeneric.transpose
+transpose :: (U.Unbox e, Matrix COO ty e) 
+          => MatrixData COO ty e -> MatrixData COO D e
+transpose = DGeneric.transpose
 
 
-convert :: Sparse r2 D e => SparseData COO D e -> SparseData r2 D e 
-convert  = SGeneric.convert
+convert :: Matrix r2 D e => MatrixData COO D e -> MatrixData r2 D e 
+convert  = DGeneric.convert
 
 
-empty :: Sparse COO ty a => SparseData COO ty a -> Bool 
-empty = SGeneric.empty 
+empty :: Matrix COO ty a => MatrixData COO ty a -> Bool 
+empty = DGeneric.empty 
 
 
-map :: Sparse COO ty e => (e -> b) -> SparseData COO ty e -> SparseData COO D b 
-map = SGeneric.map 
+map :: Matrix COO ty e => (e -> b) -> MatrixData COO ty e -> MatrixData COO D b 
+map = DGeneric.map 
 
 
-zipWith :: (Sparse COO ty a, Sparse COO ty1 b, ty ~ ty1) 
-        => (a -> b -> c) -> SparseData COO ty a 
-        -> SparseData COO ty1 b -> SparseData COO D c
-zipWith = SGeneric.zipWith
+zipWith :: (Matrix COO ty a, Matrix COO ty1 b, ty ~ ty1) 
+        => (a -> b -> c) -> MatrixData COO ty a 
+        -> MatrixData COO ty1 b -> MatrixData COO D c
+zipWith = DGeneric.zipWith
 
 
-(#+) :: (Sparse COO ty a, Num a) 
-     => SparseData COO ty a -> SparseData COO ty a -> SparseData COO D a
-(#+) = SGeneric.add 
+(#+) :: (Matrix COO ty a, Num a) 
+     => MatrixData COO ty a -> MatrixData COO ty a -> MatrixData COO D a
+(#+) = DGeneric.add 
 
-(#-) :: (Sparse COO ty a, Num a) 
-     => SparseData COO ty a -> SparseData COO ty a -> SparseData COO D a
-(#-) = SGeneric.minus 
+(#-) :: (Matrix COO ty a, Num a) 
+     => MatrixData COO ty a -> MatrixData COO ty a -> MatrixData COO D a
+(#-) = DGeneric.minus 
 
 
 
-scale :: (Sparse COO ty a, Num a) 
-      => a -> SparseData COO ty a -> SparseData COO D a 
-scale = SGeneric.scale 
+scale :: (Matrix COO ty a, Num a) 
+      => a -> MatrixData COO ty a -> MatrixData COO D a 
+scale = DGeneric.scale 
 

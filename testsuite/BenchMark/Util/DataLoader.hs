@@ -10,10 +10,10 @@ import System.Directory
 import Control.Monad 
 import Data.Maybe 
 
-type MatrixData = M.Map String [MMExchange] 
+type RawMatrixData = M.Map String [MMExchange] 
 
 
-load_data :: FilePath -> IO MatrixData
+load_data :: FilePath -> IO RawMatrixData
 load_data dir  = do 
    print dir 
    mat_dirs <- listDirectory dir
@@ -41,7 +41,7 @@ gen_vec_boxed :: Int -> B.Vector Double
 gen_vec_boxed n = B.replicate n 1.0 
 
 
-get_data_with_double :: [String] -> MatrixData -> [Maybe [MMExchange]]
+get_data_with_double :: [String] -> RawMatrixData -> [Maybe [MMExchange]]
 get_data_with_double l dict = map (\s -> M.lookup s dict) l 
 
 

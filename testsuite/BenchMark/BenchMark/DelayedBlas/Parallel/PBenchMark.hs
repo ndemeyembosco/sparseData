@@ -1,26 +1,26 @@
 {-# LANGUAGE DataKinds, BangPatterns #-}
 
-module BenchMark.SparseBlas.Parallel.PBenchMark where 
+module BenchMark.DelayedBlas.Parallel.PBenchMark where 
 
 import Criterion.Main 
 import Criterion.Types 
-import BenchMark.SparseBlas.Parallel.PKernels
+import BenchMark.DelayedBlas.Parallel.PKernels
 -- import Util.DataLoaderSmall
 import qualified Data.Vector as U 
 import qualified Data.Map.Strict as M
 import Util.Parser.MMParser ( MMExchange, mm_to_s_data_p ) 
-import SparseBlas.Data.Matrix.Parallel.Generic.Generic
-    ( Sparse(SparseData), RepIndex(U) ) 
--- import SparseBlas.Data.Matrix.Parallel.Sparse.COO ( COO ) 
--- import BenchMark.SparseBlas.Parallel.Sparse.Big.COO
+import DelayedBlas.Data.Matrix.Parallel.Generic.Generic
+    ( Matrix(MatrixData), RepIndex(U) ) 
+-- import DelayedBlas.Data.Matrix.Parallel.Sparse.COO ( COO ) 
+-- import BenchMark.DelayedBlas.Parallel.Sparse.Big.COO
 --     ( bench_coo_big ) 
--- import BenchMark.SparseBlas.Parallel.Sparse.Big.CSR
+-- import BenchMark.DelayedBlas.Parallel.Sparse.Big.CSR
 --     ( bench_csr_big ) 
--- import BenchMark.SparseBlas.Parallel.Sparse.Big.ELL
+-- import BenchMark.DelayedBlas.Parallel.Sparse.Big.ELL
 --     ( bench_ell_big ) 
--- import BenchMark.SparseBlas.Parallel.Sparse.Big.CSC
+-- import BenchMark.DelayedBlas.Parallel.Sparse.Big.CSC
 --     ( bench_csc_big )
-import BenchMark.SparseBlas.Parallel.Dense.Big.DENSE 
+import BenchMark.DelayedBlas.Parallel.Dense.Big.DENSE 
     (bench_dns_big)
 import Data.Maybe
 import System.Random.PCG

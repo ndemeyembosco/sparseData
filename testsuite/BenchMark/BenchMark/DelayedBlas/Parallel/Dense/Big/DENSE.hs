@@ -1,25 +1,25 @@
 {-# LANGUAGE DataKinds, RankNTypes, BangPatterns, ScopedTypeVariables, FlexibleContexts, KindSignatures #-}
 
-module BenchMark.SparseBlas.Parallel.Dense.Big.DENSE where 
+module BenchMark.DelayedBlas.Parallel.Dense.Big.DENSE where 
 
 import Criterion.Main 
 import Criterion.Types 
 import Criterion.Measurement (initializeTime, getTime, getCPUTime )
-import BenchMark.SparseBlas.Parallel.PKernels
+import BenchMark.DelayedBlas.Parallel.PKernels
 -- import qualified Kernels as K 
 import Util.DataLoader
 import qualified Data.Vector as U 
 import qualified Data.Vector.Unboxed as UNB 
 import qualified Data.Map.Strict as M
 import Util.Parser.MMParser 
-import SparseBlas.Data.Matrix.Parallel.Generic.Generic 
-import SparseBlas.Data.Matrix.Parallel.Sparse.COO 
-import SparseBlas.Data.Matrix.Parallel.Dense.DENSE 
-import SparseBlas.Data.Matrix.Parallel.Sparse.CSR 
-import SparseBlas.Data.Matrix.Parallel.Sparse.ELL 
-import SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
--- import qualified SparseBlas.Data.Matrix.Dense.DENSE as D 
--- import qualified SparseBlas.Data.Matrix.Generic.Generic as G 
+import DelayedBlas.Data.Matrix.Parallel.Generic.Generic 
+import DelayedBlas.Data.Matrix.Parallel.Sparse.COO 
+import DelayedBlas.Data.Matrix.Parallel.Dense.DENSE 
+import DelayedBlas.Data.Matrix.Parallel.Sparse.CSR 
+import DelayedBlas.Data.Matrix.Parallel.Sparse.ELL 
+import DelayedBlas.Data.Matrix.Parallel.Sparse.CSC 
+-- import qualified DelayedBlas.Data.Matrix.Dense.DENSE as D 
+-- import qualified DelayedBlas.Data.Matrix.Generic.Generic as G 
 import Data.Maybe
 -- import System.Random 
 import System.Random.PCG 
@@ -32,17 +32,17 @@ import GHC.TypeLits
 import Data.Proxy 
 
 
-genRandMatrixPCG ::  Int -> Int -> Double -> Double -> (forall n1 n2. (KnownNat n1, KnownNat n2) => SparseData DNS U n1 n2 Double)  
+genRandMatrixPCG ::  Int -> Int -> Double -> Double -> (forall n1 n2. (KnownNat n1, KnownNat n2) => MatrixData DNS U n1 n2 Double)  
 genRandMatrixPCG width height start end = runST $ do 
     let 
         widthT  = fromJust $ someNatVal $ toInteger width 
         heightT = fromJust $ someNatVal $ toInteger height 
     gen    <- create 
     to_ret <- UNB.mapM (\(t :: Int) -> uniformR (start :: Double, end :: Double) gen >>= \a -> return (a :: Double)) $ UNB.enumFromN 0 (width * height)
-    return $ (DNS to_ret :: SparseData DNS U widthT heightT Double) 
+    return $ (DNS to_ret :: MatrixData DNS U widthT heightT Double) 
 
 
--- genRandMatricesPCG :: Variate a => [Int] -> [SparseData DNS U a] 
+-- genRandMatricesPCG :: Variate a => [Int] -> [MatrixData DNS U a] 
 -- genRandMatricesPCG = Prelude.map (\w -> genRandMatrixPCG w w) 
 
 
@@ -65,7 +65,7 @@ bench_dns_big = do
    genTimeStart <- getCPUTime
    print ("generation start time: " ++ show genTimeStart)
    let  
-       m  = (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: SparseData DNS U 10000 10000 Double)
+       m  = (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: MatrixData DNS U 10000 10000 Double)
        (v1 :: UNB.Vector Double) = UNB.replicate dimension 1.0 
        (v2 :: UNB.Vector Double) = UNB.replicate dimension 1.0   
    m `deepseq` v1 `deepseq` v2 `deepseq` genTimeStart `seq` return ()
