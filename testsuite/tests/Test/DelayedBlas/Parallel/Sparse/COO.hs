@@ -2,9 +2,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-module SparseBlas.Parallel.Sparse.COO where
+module DelayedBlas.Parallel.Sparse.COO where
 
-import qualified SparseBlas.Data.Matrix.Parallel.Sparse.COO as O  
+import qualified DelayedBlas.Data.Matrix.Parallel.Sparse.COO as O  
 
 import Test.QuickCheck
     ( choose,
@@ -13,7 +13,7 @@ import Test.QuickCheck
       stdArgs,
       Arbitrary(arbitrary),
       Args(maxSuccess) )
-import SparseBlas.Parallel.Generic.Generic
+import DelayedBlas.Parallel.Generic.Generic
 --     ( arbitraryVector,
 --       s_assoc_const_mul_prop,
 --       s_commut_add_prop,
@@ -23,8 +23,8 @@ import SparseBlas.Parallel.Generic.Generic
 --       s_distr_add_mult_vec_prop,
 --       s_scalar_vec_transform,
 --       s_convert_test ) 
-import SparseBlas.Data.Matrix.Parallel.Generic.Generic
-    ( Sparse(SparseData), RepIndex(D, U) ) 
+import DelayedBlas.Data.Matrix.Parallel.Generic.Generic
+    ( Matrix(MatrixData), RepIndex(D, U) ) 
 import qualified Data.Vector.Unboxed as UVector
 import Control.Parallel.Strategies 
 import Data.Vector.Strategies 
@@ -35,7 +35,7 @@ import GHC.TypeLits
 import Data.Proxy 
 
 instance (KnownNat n, Arbitrary a, NFData a, Num a, Eq a, Ord a, UVector.Unbox a) 
-         => Arbitrary (SparseData O.COO U n n a) where 
+         => Arbitrary (MatrixData O.COO U n n a) where 
     arbitrary = do  
         let (len :: Int) = fromIntegral $ natVal (Proxy :: Proxy n)
         (n1   :: Int) <- arbitrary `suchThat` (< 1000)
@@ -63,7 +63,7 @@ instance (KnownNat n, Arbitrary a, NFData a, Num a, Eq a, Ord a, UVector.Unbox a
                        (Nothing, Nothing)-> error "width & height out of bound" ) uvec 
         case someNatVal (toInteger len) of 
             Nothing -> error "quickcheck size mismatch freak out!"
-            Just h  -> return $ (O.COO to_return :: SparseData O.COO U h h a)
+            Just h  -> return $ (O.COO to_return :: MatrixData O.COO U h h a)
         
 
 test_coo :: IO () 
@@ -72,46 +72,46 @@ test_coo = do
 
     print "undelay . delay = id : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_convert_test :: SparseData O.COO U 100 100 Double -> Bool)
+                    (s_convert_test :: MatrixData O.COO U 100 100 Double -> Bool)
 
     print " r (s A) == (r s) A: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
                     (s_assoc_const_mul_prop :: Double 
                                     -> Double 
-                                    -> SparseData O.COO D 100 100 Double -> Bool)
+                                    -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) == (B + A): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_commut_add_prop :: SparseData O.COO D 100 100 Double 
-                                        -> SparseData O.COO D 100 100 Double -> Bool)
+                    (s_commut_add_prop :: MatrixData O.COO D 100 100 Double 
+                                        -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "r (A + B) = r A + r B: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
                     (s_distr_const_mul_prop :: Double 
-                                    -> SparseData O.COO D 100 100 Double 
-                                    -> SparseData O.COO D 100 100 Double -> Bool)
+                                    -> MatrixData O.COO D 100 100 Double 
+                                    -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) + C == A + (B + C): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_add_prop :: SparseData O.COO D 100 100 Double 
-                                    -> SparseData O.COO D 100 100 Double 
-                                    -> SparseData O.COO D 100 100 Double -> Bool)
+                    (s_assoc_add_prop :: MatrixData O.COO D 100 100 Double 
+                                    -> MatrixData O.COO D 100 100 Double 
+                                    -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "A (w + v) = A w + A v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
                 (s_assoc_mult_vec_prop :: UVector.Vector Double 
                                     -> UVector.Vector Double 
-                                    -> SparseData O.COO D 100 100 Double -> Bool)
+                                    -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) v = A v + B v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
                     (s_distr_add_mult_vec_prop :: UVector.Vector Double 
-                                    -> SparseData O.COO D 100 100 Double 
-                                    -> SparseData O.COO D 100 100 Double -> Bool)
+                                    -> MatrixData O.COO D 100 100 Double 
+                                    -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "A (a  u) = a  (A . u): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
                     (s_scalar_vec_transform :: Int
                                     -> UVector.Vector Int 
-                                    -> SparseData O.COO D 100 100 Int -> Bool)
+                                    -> MatrixData O.COO D 100 100 Int -> Bool)
     return ()

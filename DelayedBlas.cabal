@@ -226,7 +226,7 @@ executable DelayedBlas-test
                       --  vector-strategies 
 
 
-executable SBlasTestP 
+executable DBlasTestP 
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
@@ -244,10 +244,10 @@ executable SBlasTestP
   ghc-options: -threaded -eventlog -rtsopts +RTS -N4  -RTS -O2 -main-is PCheck.hs -o pcheck 
 
   other-modules:      DelayedBlas.Parallel.Generic.Generic,
-                      DelayedBlas.Parallel.Delayed.COO,
-                      --  DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                      DelayedBlas.Parallel.Sparse.COO,
+                      DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
-                      DelayedBlas.Data.Matrix.Parallel.Delayed.COO
+                      DelayedBlas.Data.Matrix.Parallel.Sparse.COO
                       --  DelayedBlas.Data.Matrix.Parallel.Delayed.CSC,
                       --  DelayedBlas.Data.Matrix.Parallel.Delayed.CSR,
                       --  DelayedBlas.Data.Matrix.Parallel.Delayed.ELL,

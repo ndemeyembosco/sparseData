@@ -1,16 +1,16 @@
 {-# LANGUAGE RankNTypes, AllowAmbiguousTypes #-}
-module Test.SparseBlas.Parallel.PCheck where
+module Test.DelayedBlas.Parallel.PCheck where
 
 import Test.QuickCheck
     ( quickCheckWith, stdArgs, Args(maxSuccess) ) 
 import qualified Data.Vector.Unboxed as UVector
-import qualified SparseBlas.Parallel.Generic.Generic as PG ( s_vec_test )  
-import SparseBlas.Parallel.Sparse.COO ( test_coo )  
-import SparseBlas.Parallel.Sparse.CSC ( test_csc ) 
-import SparseBlas.Parallel.Sparse.CSR ( test_csr ) 
-import SparseBlas.Parallel.Sparse.ELL ( test_ell ) 
-import SparseBlas.Parallel.Dense.DENSE ( test_dense ) 
--- import SparseBlas.Generic.Generic -- hiding (s_vec_test, Arbitrary(..))
+import qualified DelayedBlas.Parallel.Generic.Generic as PG ( s_vec_test )  
+import DelayedBlas.Parallel.Sparse.COO ( test_coo )  
+import DelayedBlas.Parallel.Sparse.CSC ( test_csc ) 
+import DelayedBlas.Parallel.Sparse.CSR ( test_csr ) 
+import DelayedBlas.Parallel.Sparse.ELL ( test_ell ) 
+import DelayedBlas.Parallel.Dense.DENSE ( test_dense ) 
+-- import DelayedBlas.Generic.Generic -- hiding (s_vec_test, Arbitrary(..))
 import GHC.TypeLits 
 import Data.Proxy 
 
