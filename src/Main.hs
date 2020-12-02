@@ -9,23 +9,23 @@ module Main where
 
 import qualified Data.Vector.Unboxed as U  
 import           Text.Parsec.String     (Parser, parseFromFile)
--- import SparseData
--- import SparseBlas.Data.Matrix.Generic.Generic as SGeneric
+-- import DelayedData
+-- import DelayedBlas.Data.Matrix.Generic.Generic as SGeneric
 --     ( Sparse((#.), SparseData), SVector, vmap, vzipWith, vsum ) 
 
 
-import SparseBlas.Data.Matrix.Parallel.Generic.Generic 
-import SparseBlas.Data.Matrix.Parallel.Dense.DENSE 
+import DelayedBlas.Data.Matrix.Parallel.Generic.Generic 
+import DelayedBlas.Data.Matrix.Parallel.Dense.DENSE 
 
 
 
 
--- import SparseBlas.Data.Matrix.Parallel.Sparse.COO
--- import SparseBlas.Data.Matrix.Parallel.Sparse.CSR
--- import SparseBlas.Data.Matrix.Parallel.Sparse.ELL  
--- import SparseBlas.Data.Matrix.Parallel.Sparse.CSC 
+-- import DelayedBlas.Data.Matrix.Parallel.Sparse.COO
+-- import DelayedBlas.Data.Matrix.Parallel.Sparse.CSR
+-- import DelayedBlas.Data.Matrix.Parallel.Sparse.ELL  
+-- import DelayedBlas.Data.Matrix.Parallel.Sparse.CSC 
 
--- cg :: (Num a, Sparse rep ty a, U.Unbox a, Eq a, Floating a) => Int -> SVector a -> SparseData rep ty a ->  SVector a -> (a, SVector a)
+-- cg :: (Num a, Matrix rep ty a, U.Unbox a, Eq a, Floating a) => Int -> SVector a -> MatrixData rep ty a ->  SVector a -> (a, SVector a)
 -- {-# INLINE cg #-}
 -- cg !iters !z !a !x = 
 --     let 
