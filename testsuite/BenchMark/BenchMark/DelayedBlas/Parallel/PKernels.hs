@@ -12,8 +12,8 @@ import DelayedBlas.Data.Matrix.Parallel.Generic.Generic
       Matrix((#.), MatrixData),
       SVector,
       RepIndex(U, D),
-      to_vector,
-      from_vector,
+      toVector,
+      fromVector,
       vzipWith,
       (!+!),
       (!-!),
@@ -44,7 +44,7 @@ axpy a x y = a !*! x !+! y
 
 -- axpyU ::  (Floating a, NFData a)
 --      => a  -> U.Vector a -> U.Vector a -> SVector a 
--- axpyU a x y = let (x', y') = (from_vector x, from_vector y) in a !*! x' !+! y' 
+-- axpyU a x y = let (x', y') = (fromVector x, fromVector y) in a !*! x' !+! y' 
 
 -- axpyAllU ::  (Floating a, NFData a)
 --      => a  -> U.Vector a -> U.Vector a -> U.Vector a 
@@ -60,7 +60,7 @@ axpy a x y = a !*! x !+! y
 
 -- twiceAxpyForce ::  (Floating a, NFData a)
 --      => a -> SVector a -> a -> SVector a -> SVector a 
--- twiceAxpyForce a x p y = let n = to_vector $ axpy a x p y in axpy a (from_vector n) p (from_vector n)  
+-- twiceAxpyForce a x p y = let n = toVector $ axpy a x p y in axpy a (fromVector n) p (fromVector n)  
 
 
 
@@ -88,7 +88,7 @@ waxpby a x b y = a !*! x !+! (b !*! y)
 
 -- ataxForce :: (Sparse rep ty a, Floating a, U.Unbox a) 
 --      => SparseData rep ty a -> SVector a -> SVector a  
--- ataxForce a x = let x' = from_vector $! to_vector $ mvec a x in (transpose a) #. x' 
+-- ataxForce a x = let x' = fromVector $! toVector $ mvec a x in (transpose a) #. x' 
 
 mvec :: (Matrix rep ty n1 n2 a, Floating a, U.Unbox a) 
      => MatrixData rep ty n1 n2 a -> SVector n2 a -> SVector n1 a  
@@ -100,7 +100,7 @@ mvec a x =  a #. x
 
 -- ataxTwiceForce :: (Matrix rep ty a, Floating a, U.Unbox a) 
 --      => MatrixData rep ty a -> SVector a -> SVector a  
--- ataxTwiceForce a x = let x' = from_vector $! to_vector $ ataxForce a x in (transpose a) #. (a #. x')
+-- ataxTwiceForce a x = let x' = fromVector $! toVector $ ataxForce a x in (transpose a) #. (a #. x')
 
 
 
@@ -113,8 +113,8 @@ mvec a x =  a #. x
 --      => MatrixData rep ty a -> SVector a -> SVector a  
 -- ataxTwiceAddForce a x = let 
 --                           a' = s_undelay $ (transpose a) 
---                           x' = to_vector $ (delay a') #. (a #. x) 
---                         in (delay a') #. (a #. (from_vector x') !+! (from_vector x'))
+--                           x' = toVector $ (delay a') #. (a #. x) 
+--                         in (delay a') #. (a #. (fromVector x') !+! (fromVector x'))
 
 
 -- -- bicgk 
@@ -132,7 +132,7 @@ smvm_xpy :: (Matrix rep ty n n a, Floating a)
 smvm_xpy !mat !vec1 !vec2 !alpha = ((alpha `scale` smat) #. svec1) ^+^ svec2 
    where 
      smat           = delay mat 
-     (svec1, svec2) = (from_vector vec1, from_vector vec2) 
+     (svec1, svec2) = (fromVector vec1, fromVector vec2) 
      (^+^)          = vzipWith (+)
 
 
@@ -142,6 +142,7 @@ gemv :: (Matrix rep ty n n a, Floating a)
      -> SVector n a -> SVector n a 
 {-# INLINE gemv #-}
 gemv alpha beta a x y = (alpha `scale` a #. x) !+! (beta !*! y) 
+{-# SCC gemv #-}
 
 
 -- gemvt 

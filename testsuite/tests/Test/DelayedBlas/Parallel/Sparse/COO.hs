@@ -12,27 +12,26 @@ import Test.QuickCheck
       quickCheckWith,
       stdArgs,
       Arbitrary(arbitrary),
-      Args(maxSuccess) )
-import DelayedBlas.Parallel.Generic.Generic
---     ( arbitraryVector,
---       s_assoc_const_mul_prop,
---       s_commut_add_prop,
---       s_distr_const_mul_prop,
---       s_assoc_add_prop,
---       s_assoc_mult_vec_prop,
---       s_distr_add_mult_vec_prop,
---       s_scalar_vec_transform,
---       s_convert_test ) 
+      Args(maxSuccess))
+import DelayedBlas.Parallel.Generic.Generic 
+    ( arbitraryVector, 
+      convertTest,
+      assocConstMulProp, 
+      commutAddProp, 
+      distrConstMulProp, 
+      assocAddProp, 
+      assocMultVecProp, 
+      distrAddMultVecProp, 
+      scalarVecTransform)
 import DelayedBlas.Data.Matrix.Parallel.Generic.Generic
     ( Matrix(MatrixData), RepIndex(D, U) ) 
 import qualified Data.Vector.Unboxed as UVector
-import Control.Parallel.Strategies 
-import Data.Vector.Strategies 
+import Control.Parallel.Strategies ( NFData ) 
 import qualified Data.Set as S
 import Control.Monad ( replicateM ) 
 import Data.List (sort)
-import GHC.TypeLits 
-import Data.Proxy 
+import GHC.TypeLits ( KnownNat, natVal, someNatVal ) 
+import Data.Proxy ( Proxy(..) ) 
 
 instance (KnownNat n, Arbitrary a, NFData a, Num a, Eq a, Ord a, UVector.Unbox a) 
          => Arbitrary (MatrixData O.COO U n n a) where 
@@ -50,7 +49,7 @@ instance (KnownNat n, Arbitrary a, NFData a, Num a, Eq a, Ord a, UVector.Unbox a
                                      $ zip heights' widths' 
         (uvec :: UVector.Vector a) <- arbitraryVector `suchThat` 
                                          (\v -> 
-                                            (UVector.length $ UVector.filter (/= 0) v) 
+                                            UVector.length (UVector.filter (/= 0) v) 
                                             == UVector.length widths)
         !to_return <- UVector.imapM (\i x -> do 
                       let 
@@ -72,46 +71,46 @@ test_coo = do
 
     print "undelay . delay = id : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_convert_test :: MatrixData O.COO U 100 100 Double -> Bool)
+                    (convertTest :: MatrixData O.COO U 100 100 Double -> Bool)
 
     print " r (s A) == (r s) A: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_const_mul_prop :: Double 
+                    (assocConstMulProp :: Double 
                                     -> Double 
                                     -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) == (B + A): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_commut_add_prop :: MatrixData O.COO D 100 100 Double 
+                    (commutAddProp :: MatrixData O.COO D 100 100 Double 
                                         -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "r (A + B) = r A + r B: \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_distr_const_mul_prop :: Double 
+                    (distrConstMulProp :: Double 
                                     -> MatrixData O.COO D 100 100 Double 
                                     -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) + C == A + (B + C): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_assoc_add_prop :: MatrixData O.COO D 100 100 Double 
+                    (assocAddProp :: MatrixData O.COO D 100 100 Double 
                                     -> MatrixData O.COO D 100 100 Double 
                                     -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "A (w + v) = A w + A v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                (s_assoc_mult_vec_prop :: UVector.Vector Double 
+                (assocMultVecProp :: UVector.Vector Double 
                                     -> UVector.Vector Double 
                                     -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "(A + B) v = A v + B v : \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_distr_add_mult_vec_prop :: UVector.Vector Double 
+                    (distrAddMultVecProp :: UVector.Vector Double 
                                     -> MatrixData O.COO D 100 100 Double 
                                     -> MatrixData O.COO D 100 100 Double -> Bool)
 
     print "A (a  u) = a  (A . u): \n"
     quickCheckWith (stdArgs {maxSuccess=1000}) 
-                    (s_scalar_vec_transform :: Int
+                    (scalarVecTransform :: Int
                                     -> UVector.Vector Int 
                                     -> MatrixData O.COO D 100 100 Int -> Bool)
     return ()

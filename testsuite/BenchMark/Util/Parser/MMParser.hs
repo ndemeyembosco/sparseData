@@ -13,9 +13,7 @@ import           Text.Parsec.Char
 import           Text.Parsec.Combinator
 import           Text.Parsec.Language
 import qualified DelayedBlas.Data.Matrix.Parallel.Generic.Generic as G 
-import DelayedBlas.Data.Matrix.Generic.Generic hiding (map)
 import qualified DelayedBlas.Data.Matrix.Parallel.Sparse.COO as O 
-import DelayedBlas.Data.Matrix.Sparse.COO hiding (map)
 import           Text.Parsec.String     (Parser, parseFromFile)
 import GHC.TypeLits 
 import Data.Proxy 
@@ -121,18 +119,6 @@ parseMMExchange = (P.many parseCommentLine)
                *> (MMCOO <$> parseDims <*> parseAllEntries)
 
 
-mm_to_s_data :: MMExchange -> MatrixData COO U Double 
-mm_to_s_data Empty = COO (U.fromList []) 0 0 
-mm_to_s_data (MMCOO (fromInteger -> w, fromInteger -> h, _) entries) 
-                   =  COO 
-                     {
-                       coo_vals= (U.fromList $ map (\(fromInteger -> i
-                                                    , fromInteger -> j
-                                                    , d) -> (d, i, j)) 
-                                               entries)
-                     , width=w
-                     , height=h}
-
 
 
 mm_to_s_data_empty :: MMExchange -> G.MatrixData O.COO G.U 0 0 Double 
@@ -150,15 +136,4 @@ mm_to_s_data_p (MMCOO (fromInteger -> w, fromInteger -> h, _) entries)
                                                   } :: G.MatrixData O.COO G.U w1 h1 Double)
                          _                  -> error "invalid width and height for exchange data"
 
-
-
--- main :: IO () 
--- main = do 
---   args <- getArgs 
---   let 
---     fname = head args 
---   fcontents <- readFile fname 
---   case myparse parseMMExchange fcontents of 
---     Right mat -> print mat 
---     Left err  -> error $ show err 
 

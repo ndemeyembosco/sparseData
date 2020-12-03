@@ -2,22 +2,21 @@
            , FlexibleInstances, BangPatterns, RankNTypes 
            , FlexibleContexts 
            , AllowAmbiguousTypes, ScopedTypeVariables 
-           , UndecidableInstances, DataKinds, DeriveGeneric, QuantifiedConstraints, GADTs #-}
+           , UndecidableInstances, DataKinds, QuantifiedConstraints, GADTs #-}
 
 module DelayedBlas.Data.Matrix.Parallel.Generic.Generic where 
 
 import qualified Data.Vector.Unboxed as V 
 import qualified Data.Vector.Unboxed.Mutable as VM 
-import qualified Data.Vector as VB 
+import Data.Vector()
 import Prelude hiding (map, zipWith)
-import Control.DeepSeq 
-import GHC.Conc (numCapabilities)
-import GHC.Base (quotInt)
+import Control.DeepSeq ( NFData(..), deepseq ) 
 import Data.Array.Repa.Eval (fillChunkedP)
 import System.IO.Unsafe (unsafePerformIO)
-import GHC.TypeLits 
-import Data.Proxy 
-import Control.Exception 
+import GHC.TypeLits
+    ( KnownNat, Nat, natVal, someNatVal, SomeNat(SomeNat) ) 
+import Data.Proxy ( Proxy(..) ) 
+import Control.Exception ( throw, Exception ) 
 
 data MatrixException = InvalidVectorLength 
                      | NullVector 
@@ -33,31 +32,33 @@ data RepIndex = U | D
 newtype SVector (n :: Nat) a = F (Int -> a)
 
 
-to_vector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.Vector a 
-{-# INLINE to_vector #-}
-to_vector (F f) = vals   
+toVector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.Vector a 
+{-# INLINE toVector #-}
+toVector (F f) = vals   
        where 
             vals = v `deepseq` v    
             !len  = fromIntegral $ natVal (Proxy :: Proxy n)
+            {-# SCC v "toVector_v_par_comp" #-}
             v    = unsafePerformIO $ do 
                                 (vec :: VM.IOVector e) <- VM.new len   
                                 fillChunkedP len (VM.unsafeWrite vec) f 
-                                v1  <- V.unsafeFreeze vec 
-                                return v1 
-
+                                V.unsafeFreeze vec 
+    
+{-# SCC toVector #-}
+                                
 instance (KnownNat n, NFData a, V.Unbox a, Show a) => Show (SVector n a) where 
-    show v@(F f) = show $ to_vector v   
+    show v@(F f) = show $ toVector v   
 
 
-from_vector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
-{-# INLINE from_vector #-}
-from_vector !vec = let !len = V.length vec 
+fromVector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
+{-# INLINE fromVector #-}
+fromVector !vec = let !len = V.length vec 
                    in case someNatVal (toInteger len) of 
                         Nothing -> throw InvalidVectorLength 
-                        Just l  -> if l == (SomeNat (Proxy :: Proxy n)) 
+                        Just l  -> if l == SomeNat (Proxy :: Proxy n) 
                                    then if V.null vec 
                                         then throw NullVector 
-                                        else (F ((V.!) vec) :: SVector l a) 
+                                        else (F (vec V.!) :: SVector l a) 
                                    else 
                                        throw FromVecLengthMismatch 
 
@@ -103,7 +104,7 @@ vsum (F f) = let !len = fromIntegral $ natVal (Proxy :: Proxy n)
 veq :: (KnownNat n, NFData a, Num a, Eq a, V.Unbox a) => SVector n a -> SVector n a -> Bool 
 {-# INLINE veq #-}
 veq !vec1 !vec2 = V.foldr (&&) True $! V.zipWith 
-                                     (==) (to_vector vec1) (to_vector vec2)
+                                     (==) (toVector vec1) (toVector vec2)
 
 
 
@@ -132,17 +133,17 @@ instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Matrix 
     (#.) (SDelayed m_index_f) v = F dots 
        where 
            {-# INLINE dots #-}
-           dots !ri = let g = (curry m_index_f) ri in (F g) !.! v 
+           dots !ri = let g = curry m_index_f ri in F g !.! v 
     {-# INLINE (#*) #-}
     (#*) (SDelayed m_index_f1) (SDelayed m_index_f2) = SDelayed ans_index 
        where 
            {-# INLINE ans_index #-} 
-           ans_index (!ri, !colj) = let (g, h) = ((\(!c) -> m_index_f1 (ri, c), (\(!r) -> m_index_f2 (r, colj))))
+           ans_index (!ri, !colj) = let (g, h) = (\(!c) -> m_index_f1 (ri, c), \(!r) -> m_index_f2 (r, colj))
                                     in  (F g :: SVector n2 e) !.! (F h :: SVector n2 e)   
 
 instance (KnownNat n1, KnownNat n2) => (NFData (MatrixData r D n1 n2 e)) where 
     {-# INLINE rnf #-}
-    rnf (SDelayed func) = (SDelayed func) `seq` ()  
+    rnf (SDelayed func) = SDelayed func `seq` ()  
 
 
 delay :: (Matrix r ty n1 n2 e) => MatrixData r ty n1 n2 e -> MatrixData r D n1 n2 e 
@@ -162,13 +163,13 @@ transpose mat = SDelayed (new_index_func mat)
 convert :: (Matrix r1 D n1 n2 e, Matrix r2 D n1 n2 e) 
         => MatrixData r1 D n1 n2 e -> MatrixData r2 D n1 n2 e 
 {-# INLINE convert #-}
-convert (SDelayed func) = (SDelayed func)  
+convert (SDelayed func) = SDelayed func
 
 
-manifest_convert :: (Undelay r1 n1 n2 e, Undelay r2 n1 n2 e) 
+manifestConvert :: (Undelay r1 n1 n2 e, Undelay r2 n1 n2 e) 
                  => MatrixData r1 U n1 n2 e -> MatrixData r2 U n1 n2 e 
-{-# INLINE manifest_convert #-}
-manifest_convert  = s_undelay . convert . delay   
+{-# INLINE manifestConvert #-}
+manifestConvert  = s_undelay . convert . delay   
 
 
 
@@ -176,10 +177,10 @@ manifest_convert  = s_undelay . convert . delay
 -- used mainly for tests
 empty :: forall n1 n2 a r ty. (KnownNat n1, KnownNat n2, Matrix r ty n1 n2 a) => MatrixData r ty n1 n2 a -> Bool 
 {-# INLINE empty #-}
-empty mat = let 
+empty _ = let 
               z1 = fromIntegral $ natVal (Proxy :: Proxy n1)
               z2 = fromIntegral $ natVal (Proxy :: Proxy n2)
-            in and [z1 == 0, z2 == 0]
+            in (z1 == 0) && (z2 == 0)
 
 
 -- -- -------------- Polymorphic -----------------------------------------------

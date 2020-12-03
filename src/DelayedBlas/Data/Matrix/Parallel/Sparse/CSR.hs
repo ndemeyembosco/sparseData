@@ -1,38 +1,38 @@
 {-# LANGUAGE TypeFamilies, MultiParamTypeClasses
-           , FlexibleInstances, BangPatterns, RankNTypes 
+           , FlexibleInstances, RankNTypes 
            , FlexibleContexts
            , EmptyDataDecls 
            , AllowAmbiguousTypes 
            , UndecidableInstances, DataKinds 
-           , ScopedTypeVariables, Strict, StrictData #-}
+           , ScopedTypeVariables, Strict #-}
 
 
 module DelayedBlas.Data.Matrix.Parallel.Sparse.CSR where 
 
 import qualified Data.Vector.Unboxed as V  
-import Control.DeepSeq 
+import Control.DeepSeq ( NFData(..) ) 
 
 
 import DelayedBlas.Data.Matrix.Parallel.Generic.Generic as DGeneric
-    -- ( Undelay(..),
-    --   Sparse(s_dims, s_index, SparseData),
-    --   SparseData(SDelayed),
-    --   RepIndex(D, U),
-    --   delay,
-    --   transpose,
-    --   convert,
-    --   manifest_convert,
-    --   empty,
-    --   map,
-    --   zipWith,
-    --   add,
-    --   minus,
-    --   scale ) 
+    ( Undelay(..),
+      Matrix(s_index, MatrixData),
+      MatrixData(SDelayed),
+      RepIndex(D, U),
+      delay,
+      transpose,
+      convert,
+      map,
+      zipWith,
+      add,
+      minus,
+      scale,
+      manifestConvert )
+
 import qualified DelayedBlas.Data.Matrix.Parallel.Sparse.COO as O 
-import Control.Parallel.Strategies 
-import Data.Vector.Strategies
-import GHC.TypeLits 
-import Data.Proxy
+import GHC.TypeLits ( KnownNat, natVal ) 
+import Data.Proxy ( Proxy(..) )
+import Data.Maybe (fromMaybe)
+import Control.Parallel.Strategies (parMap, rpar )
 
 
 
@@ -40,44 +40,34 @@ data CSR
 instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Matrix CSR U n1 n2 e where 
     data instance MatrixData CSR U n1 n2 e = CSR { row_offsets     :: V.Vector Int
                                                 ,  col_index_csr   :: V.Vector Int
-                                                ,  csr_vals        :: V.Vector e
-                                          -- ,  csr_height      :: !Int
-                                          -- ,  csr_width       :: !Int
-                                                 } 
+                                                ,  csr_vals        :: V.Vector e} 
     -- indexing is big o of maximum number of elements per row
     s_index (CSR row_offs col_index vals) (r, c) = el
                                  where
                                    to_slice = row_offs V.! r 
-                                   to_start = case row_offs V.!? (r - 1) of 
-                   -- error ("access out of bounds here" ++ show row_offs)
-                                                  Nothing -> 0 
-                                                  Just n  -> n 
+                                   to_start = fromMaybe 0 (row_offs V.!? (r - 1)) 
                                    vec      = V.slice to_start 
                                                       (to_slice - to_start) 
                                                       $ V.zip col_index vals 
-                                   el = case V.find (\(x, _) -> x == c) vec of 
-                                               Nothing -> 0 -- error index element non-existent 
-                                               Just (_, a1)  -> a1  
+                                   el = snd $ fromMaybe (0, 0) (V.find (\(x, _) -> x == c) vec)  
 
 
 instance NFData (MatrixData CSR U n1 n2 e) where 
-  rnf (CSR rows cols vals) = let ((), (), ()) = (rnf rows, rnf cols, rnf vals) in (CSR rows cols vals) `seq` ()
+  rnf (CSR rows cols vals) = let ((), (), ()) = (rnf rows, rnf cols, rnf vals) in CSR rows cols vals `seq` ()
 
 instance (Matrix CSR D n1 n2 e, Matrix CSR U n1 n2 e) => Undelay CSR n1 n2 e where  
     s_undelay (SDelayed func) = CSR r_offs cols vals
                                  where 
-                                   vals_r r = (V.unfoldrN w (\c -> 
+                                   vals_r r = V.unfoldrN w (\c -> 
                                                     if func (r, c) /= 0 
                                                     then Just ((func (r,c), c), c + 1) 
-                                                    else Nothing) 0) 
-                                   rows      = parMap rpar (\r -> 
-                                                               vals_r r) 
+                                                    else Nothing) 0
+                                   rows      = parMap rpar vals_r
                                                              [0..h-1]
-                                   all_vals_c   = (V.concat rows) 
-                                   r_counts     = (V.fromList 
-                                                  $ Prelude.map V.length 
-                                                                rows) 
-                                   r_offs       = (V.scanl (+) 0 r_counts) 
+                                   all_vals_c   = V.concat rows
+                                   r_counts     = V.fromList 
+                                                  $ Prelude.map V.length rows
+                                   r_offs       = V.scanl (+) 0 r_counts 
                                    (vals, cols) = V.unzip all_vals_c
                                    h            = fromIntegral $ natVal (Proxy :: Proxy n1)
                                    w            = fromIntegral $ natVal (Proxy :: Proxy n2)
@@ -87,11 +77,11 @@ instance (Matrix CSR D n1 n2 e, Matrix CSR U n1 n2 e) => Undelay CSR n1 n2 e whe
 instance (Matrix O.COO U n1 n2 e, Undelay CSR n1 n2 e) => Eq (MatrixData CSR U n1 n2 e) where 
   arr1 == arr2 = arr1_coo == arr2_coo 
           where 
-            (arr1_coo :: MatrixData O.COO U n1 n2 e) = manifest_convert arr1 
-            (arr2_coo :: MatrixData O.COO U n1 n2 e) = manifest_convert arr2
+            (arr1_coo :: MatrixData O.COO U n1 n2 e) = manifestConvert arr1 
+            (arr2_coo :: MatrixData O.COO U n1 n2 e) = manifestConvert arr2
 
 instance (Eq (MatrixData CSR U n1 n2 e), Undelay CSR n1 n2 e) => Eq (MatrixData CSR D n1 n2 e) where 
-    arr1 == arr2 = (s_undelay arr1) == (s_undelay arr2)
+    arr1 == arr2 = s_undelay arr1 == s_undelay arr2
 
 
 instance (Show e, Undelay CSR n1 n2 e, Matrix CSR ty n1 n2 e) => Show (MatrixData CSR ty n1 n2 e) where 
