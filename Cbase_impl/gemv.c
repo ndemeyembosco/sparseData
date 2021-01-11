@@ -1,13 +1,18 @@
+#include "mkl.h"
 #include <time.h>
 #include <stdio.h> 
 #include <stdlib.h> 
-#include <cblas.h> 
 
 
 
-double drand (double low, double high)
+double sum (double* arr, int len)
 {
-    return ((double) rand() * (high - low)) / ((double) RAND_MAX + 1); 
+    double to_return = 0;
+    for(size_t i = 0; i < len; i++) 
+    {
+        to_return += arr[i];
+    }
+    return to_return;
 }
 
 int main(int argc, char* argv[])
@@ -15,11 +20,9 @@ int main(int argc, char* argv[])
     clock_t start1, end1, start, end; 
     double elapsed; 
     int dimension; 
-    int max_rand; 
     
     start1 = clock();
     dimension = atoi(argv[1]);
-    max_rand  = atoi(argv[2]);
 
     double* X = (double*) malloc(sizeof(double) * dimension); 
     double* Y = (double*) malloc(sizeof(double) * dimension); 
@@ -27,22 +30,23 @@ int main(int argc, char* argv[])
 
     for (size_t i = 0; i < dimension; i++)
     {
-        double x = drand(1, max_rand); 
-        double y = drand(1, max_rand); 
+        double x = 3.4568; 
+        double y = 1.2345; 
         X[i] = x;
         Y[i] = y;  
     }
-
-    printf("done generating vector \n");
 
     for (size_t r = 0; r < dimension; r++)
     {
         for (size_t c = 0; c < dimension; c++)
         {
-            A[r*1000+c] = drand(1, max_rand); 
+            A[r*1000+c] = 12.3245; 
         }
         
     }
+    printf("sum X before dgemv: %f \n", sum(X, dimension));
+    printf("sum Y before dgemv: %f \n", sum(Y, dimension));
+    printf("sum A before dgemv: %f \n", sum(A, dimension));
     
     
 
@@ -50,6 +54,7 @@ int main(int argc, char* argv[])
     cblas_dgemv(CblasRowMajor, CblasNoTrans, dimension, dimension, 1.0, A, dimension, X, 1, 1.0, Y, 1); 
     end = clock(); 
     elapsed = ((double) (end - start)) / CLOCKS_PER_SEC; 
+    printf("sum after dgemv: %.10e \n", sum(Y, dimension));
     printf("elapsed time: %f \n", elapsed); 
 
     free(X); 

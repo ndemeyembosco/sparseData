@@ -50,12 +50,12 @@ extra-source-files:  CHANGELOG.md, README.md
 library
   -- Modules exported by the library.
   exposed-modules:     Main, 
-                       DelayedBlas.Data.Matrix.Dense.DENSE, 
-                       DelayedBlas.Data.Matrix.Generic.Generic, 
-                       DelayedBlas.Data.Matrix.Delayed.CSR, 
-                       DelayedBlas.Data.Matrix.Delayed.ELL, 
-                       DelayedBlas.Data.Matrix.Delayed.CSC, 
-                       DelayedBlas.Data.Matrix.Delayed.COO
+                       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE, 
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic, 
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.CSR, 
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.ELL, 
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.CSC, 
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -83,8 +83,10 @@ library
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       vector-strategies,
-                       parallel 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
 
   -- Directories containing source files.
   hs-source-dirs:      src, util 
@@ -100,10 +102,10 @@ executable DelayedBlas
   -- Modules included in this executable, other than Main.
   other-modules:       DelayedBlas.Data.Matrix.Dense.DENSE,
                        DelayedBlas.Data.Matrix.Generic.Generic,
-                       DelayedBlas.Data.Matrix.Delayed.COO,
-                       DelayedBlas.Data.Matrix.Delayed.CSC,
-                       DelayedBlas.Data.Matrix.Delayed.CSR,
-                       DelayedBlas.Data.Matrix.Delayed.ELL
+                       DelayedBlas.Data.Matrix.Sparse.COO,
+                       DelayedBlas.Data.Matrix.Sparse.CSC,
+                       DelayedBlas.Data.Matrix.Sparse.CSR,
+                       DelayedBlas.Data.Matrix.Sparse.ELL
 
   -- LANGUAGE extensions used by modules in this package.
   other-extensions:    GADTs, 
@@ -128,110 +130,26 @@ executable DelayedBlas
                        parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       vector-strategies,
-                       parallel,
-                       deepseq,
-                       repa 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
 
   -- Directories containing source files.
   hs-source-dirs:      src, util 
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
+ 
 
 
-executable DelayedBlas-par
-  -- .hs or .lhs file containing the Main module.
-  main-is:             Main.hs
-
-  -- Modules included in this executable, other than Main.
-  other-modules:      DelayedBlas.Data.Matrix.Parallel.Generic.Generic, 
-                      DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
-                      DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
-                      DelayedBlas.Data.Matrix.Parallel.Sparse.CSR, 
-                      DelayedBlas.Data.Matrix.Parallel.Sparse.ELL,
-                      DelayedBlas.Data.Matrix.Parallel.Sparse.CSC 
-
-  -- LANGUAGE extensions used by modules in this package.
-  other-extensions:    GADTs, 
-                       ViewPatterns, 
-                       BangPatterns, 
-                       DataKinds, 
-                       TypeFamilies, 
-                       MultiParamTypeClasses, 
-                       FlexibleInstances, 
-                       RankNTypes, 
-                       FlexibleContexts, 
-                       EmptyDataDecls, 
-                       AllowAmbiguousTypes, 
-                       UndecidableInstances, 
-                       ScopedTypeVariables, 
-                       Strict, 
-                       StrictData, 
-                       InstanceSigs
-
-  -- Other library packages from which modules are imported.
-  build-depends:       base >=4.13.0.0, 
-                       parsec ^>=3.1.14.0, 
-                       containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1,
-                       vector-strategies,
-                       parallel,
-                       deepseq,
-                       repa ^>= 3.4.1.4
-
-  -- Directories containing source files.
-  hs-source-dirs:      src, util 
-
+executable DBlasTest
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
-
-
-
-executable DelayedBlas-test
-  -- Base language which the package is written in.
-  default-language:    Haskell2010
-
-  -- The interface type and version of the test suite.
-  type:                exitcode-stdio-1.0
-
-  -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/tests/Test,
-                       src 
-
-  -- The entrypoint to the test suite.
-  main-is:             Check.hs
-
-  other-modules:       DelayedBlas.Data.Matrix.Dense.DENSE,
-                       DelayedBlas.Data.Matrix.Generic.Generic,
-                       DelayedBlas.Data.Matrix.Delayed.COO,
-                       DelayedBlas.Data.Matrix.Delayed.CSC,
-                       DelayedBlas.Data.Matrix.Delayed.CSR,
-                       DelayedBlas.Data.Matrix.Delayed.ELL,
-                       DelayedBlas.Generic.Generic,
-                       DelayedBlas.Delayed.COO,
-                       DelayedBlas.Delayed.CSC,
-                       DelayedBlas.Delayed.CSR,
-                       DelayedBlas.Delayed.ELL,
-                       DelayedBlas.Dense.DENSE 
-
-  -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
-                       containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1,
-                       QuickCheck ^>=2.13,
-                       DelayedBlas,
-                       parallel
-                      --  vector-strategies 
-
-
-executable DBlasTestP 
-  -- Base language which the package is written in.
-  default-language:    Haskell2010
-
-  -- The interface type and version of the test suite.
-  type:                exitcode-stdio-1.0
+  -- -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
 
   -- The directory where the test specifications are found.
   hs-source-dirs:      testsuite/tests/Test/DelayedBlas/Parallel,
@@ -241,122 +159,28 @@ executable DBlasTestP
   main-is:             PCheck.hs 
 
   -- The entrypoint to the test suite.
-  ghc-options: -threaded -eventlog -rtsopts +RTS -N4  -RTS -O2 -main-is PCheck.hs -o pcheck 
+  ghc-options: -threaded -eventlog -rtsopts +RTS -N4  -RTS -O2 -main-is Test.DelayedBlas.Parallel.PCheck -o execs/ptest  
 
-  other-modules:      DelayedBlas.Parallel.Generic.Generic,
-                      DelayedBlas.Parallel.Sparse.COO,
+  other-modules:      DelayedBlas.Parallel.Dense.DENSE,
+                      DelayedBlas.Data.Matrix.Parallel.Generic.Generic, 
                       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
-                      DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
-                      DelayedBlas.Data.Matrix.Parallel.Sparse.COO
-                      --  DelayedBlas.Data.Matrix.Parallel.Delayed.CSC,
-                      --  DelayedBlas.Data.Matrix.Parallel.Delayed.CSR,
-                      --  DelayedBlas.Data.Matrix.Parallel.Delayed.ELL,
-                      --  DelayedBlas.Parallel.Delayed.CSC,
-                      --  DelayedBlas.Parallel.Delayed.CSR,
-                      --  DelayedBlas.Parallel.Delayed.ELL,
-                      --  DelayedBlas.Parallel.Dense.DENSE 
+                      DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                      DelayedBlas.Parallel.Generic.Generic,
+                      DelayedBlas.Parallel.Sparse.COO
 
   -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
+  build-depends:       QuickCheck ^>=2.13,
+                       base >=4.13.0.0, 
+                       parsec ^>=3.1.14.0, 
                        containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       QuickCheck ^>=2.13,
-                       parallel,
-                       vector-strategies,
-                       deepseq,
-                       repa 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4 
 
 
-
-executable DelayedBlas-bench-small  
-  -- Base language which the package is written in.
-  default-language:    Haskell2010
-
-  -- The interface type and version of the test suite.
-  type:                exitcode-stdio-1.0
-
-  -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/Benchmark, src 
-
-  -- The entrypoint to the test suite.
-  main-is:             BenchMarkSmall.hs 
-
-  other-modules:       DelayedBlas.Data.Matrix.Dense.DENSE,
-                       DelayedBlas.Data.Matrix.Generic.Generic,
-                       DelayedBlas.Data.Matrix.Delayed.COO,
-                       Kernels,
-                       DelayedBlas.Data.Matrix.Delayed.CSC,
-                       DelayedBlas.Data.Matrix.Delayed.CSR,
-                       DelayedBlas.Data.Matrix.Delayed.ELL,
-                       BenchMark.DelayedBlas.Delayed.Small.COO,
-                       BenchMark.DelayedBlas.Delayed.Small.CSR,
-                       BenchMark.DelayedBlas.Delayed.Small.ELL,
-                       BenchMark.DelayedBlas.Delayed.Small.CSC,
-                       Util.Parser.MMParser,
-                       Util.DataLoaderSmall 
-
-  -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
-                       containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1,
-                       criterion ^>=1.5.6.2,
-                       directory ^>=1.3.6.0,
-                       parsec ^>=3.1.14.0,
-                       parallel,
-                       deepseq,
-                       vector-strategies,
-                       DelayedBlas
-
-  ghc-options: -main-is BenchMarkSmall.hs -o execs/sbenchmark-small
-
-
-executable DelayedBlas-bench 
-  -- Base language which the package is written in.
-  default-language:    Haskell2010
-
-  -- The interface type and version of the test suite.
-  -- type:                exitcode-stdio-1.0
-
-  -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/BenchMark, src, util 
-
-  -- The entrypoint to the test suite.
-  main-is:             BenchMark.hs 
-
-  other-modules:       DelayedBlas.Data.Matrix.Dense.DENSE,
-                       DelayedBlas.Data.Matrix.Generic.Generic,
-                       DelayedBlas.Data.Matrix.Delayed.COO,
-                       BenchMark.DelayedBlas.Delayed.Big.COO,
-                       BenchMark.DelayedBlas.Delayed.Big.CSR,
-                       BenchMark.DelayedBlas.Delayed.Big.ELL,
-                       BenchMark.DelayedBlas.Delayed.Big.CSC,
-                       BenchMark.DelayedBlas.Dense.Big.DENSE,
-                       DelayedBlas.Data.Matrix.Delayed.CSC,
-                       DelayedBlas.Data.Matrix.Delayed.CSR,
-                       DelayedBlas.Data.Matrix.Delayed.ELL,
-                       Util.DataLoaderSmall,
-                       Util.Parser.MMParser,
-                       Util.DataLoader,
-                       Kernels
-
-  ghc-options: -rtsopts -eventlog -main-is BenchMark.hs -o execs/sbenchmark 
-
-  -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
-                       containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1,
-                       criterion ^>=1.5.6.2,
-                       directory ^>=1.3.6.0,
-                       parsec ^>=3.1.14.0,
-                       parallel,
-                       vector-strategies,
-                       deepseq,
-                       pcg-random ^>=0.1.3.6,
-                       DelayedBlas
-
-
-
-executable DelayedBlas-bench-parallel  
+executable DBlasBench  
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
@@ -370,66 +194,33 @@ executable DelayedBlas-bench-parallel
   main-is:             PBenchMark.hs 
 
   other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
-                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       BenchMark.DelayedBlas.Parallel.Dense.Big.DENSE,
+                       BenchMark.DelayedBlas.Parallel.PKernels,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
 
-  ghc-options: -O2 -threaded -eventlog -rtsopts -main-is BenchMark.DelayedBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
 
   -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
-                       containers ^>=0.6.2.1,
+  build-depends:       containers ^>=0.6.2.1,
                        vector ^>=0.12.1.1,
-                       criterion ^>=1.5.6.2,
                        criterion-measurement ^>=0.1.2.0,
                        directory ^>=1.3.6.0,
                        parsec ^>=3.1.14.0,
-                      --  DelayedBlas,
-                       parallel,
-                       vector-strategies,
-                       deepseq,
                        pcg-random ^>=0.1.3.6,
-                       repa 
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
 
-
-
-
-executable DelayedBlas-bench-parallel-small   
-  -- Base language which the package is written in.
-  default-language:    Haskell2010
-
-  -- The interface type and version of the test suite.
-  type:                exitcode-stdio-1.0
-
-  -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel, testsuite/BenchMark/, src, util 
-
-  -- The entrypoint to the test suite.
-  main-is:             PBenchMarkSmall.hs 
-
-  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
-                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
-                       DelayedBlas.Data.Matrix.Parallel.Delayed.COO,
-                       BenchMark.DelayedBlas.Parallel.Delayed.Big.COO,
-                       BenchMark.DelayedBlas.Parallel.Delayed.Big.CSR,
-                       BenchMark.DelayedBlas.Parallel.Delayed.Big.ELL,
-                       BenchMark.DelayedBlas.Parallel.Delayed.Big.CSC,
-                       DelayedBlas.Data.Matrix.Parallel.Delayed.CSC,
-                       DelayedBlas.Data.Matrix.Parallel.Delayed.CSR,
-                       DelayedBlas.Data.Matrix.Parallel.Delayed.ELL,
-                       Util.DataLoaderSmall,
-                       Util.Parser.MMParser,
-                       Util.DataLoader,
-                       BenchMark.DelayedBlas.Parallel.PKernels
-
-  ghc-options: -threaded -eventlog -rtsopts -O2 -main-is BenchMark.DelayedBlas.Parallel.PBenchMarkSmall.hs -o execs/pbenchmarkSmall  
-
-  -- Test dependencies.
-  build-depends:       base >=4.13.0.0, 
-                       containers ^>=0.6.2.1,
-                       vector ^>=0.12.1.1,
-                       criterion ^>=1.5.6.2,
-                       directory ^>=1.3.6.0,
-                       parsec ^>=3.1.14.0,
-                       DelayedBlas,
-                       parallel,
-                       vector-strategies,
-                       deepseq

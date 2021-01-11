@@ -20,6 +20,9 @@ import System.Random.PCG ( create, Variate(uniformR) )
 genRandMatrixPCG ::  Int -> Int -> (forall n1 n2. (KnownNat n1, KnownNat n2) => MatrixData DNS U n1 n2 Double)  
 genRandMatrixPCG width height  = let to_ret = UNB.generate (width * height) (\_ -> 12.3245) in (DNS to_ret) :: MatrixData DNS U widthT heightT Double
 
+sum_mat :: MatrixData DNS U n1 n2 Double -> Double
+sum_mat (DNS m) = UNB.sum m 
+
 
 
 bench_dns_big :: IO () 
@@ -37,6 +40,9 @@ bench_dns_big = do
        {-# SCC ans_vec "force_gemv_computation" #-} 
        !ans_vec = toVector $ gemv alpha beta m v_func1 v_func2
    print $ "sum after gemv: " ++ (show $ UNB.sum ans_vec) ++ "\n"
+   print $ "sum v1 after gemv: " ++ (show $ UNB.sum v1) ++ "\n"
+   print $ "sum v2 after gemv: " ++ (show $ UNB.sum v2) ++ "\n"
+   print $ "sum m after gemv: " ++ (show $ sum_mat m) ++ "\n"
    return ()
 
 
