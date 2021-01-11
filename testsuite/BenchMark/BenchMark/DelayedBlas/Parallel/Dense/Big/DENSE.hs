@@ -3,42 +3,40 @@
 module BenchMark.DelayedBlas.Parallel.Dense.Big.DENSE where 
 
 import qualified Data.Vector.Unboxed as UNB 
-import BenchMark.DelayedBlas.Parallel.PKernels
-import DelayedBlas.Data.Matrix.Parallel.Generic.Generic 
-import DelayedBlas.Data.Matrix.Parallel.Dense.DENSE 
+import BenchMark.DelayedBlas.Parallel.PKernels ( gemv )
+import DelayedBlas.Data.Matrix.Parallel.Generic.Generic
+    ( Matrix(MatrixData), RepIndex(U), toVector, fromVector ) 
+import DelayedBlas.Data.Matrix.Parallel.Dense.DENSE
+    (  MatrixData(DNS), DNS ) 
 import Control.DeepSeq (deepseq)
 import System.Environment (getArgs)
-import GHC.TypeLits 
-import Data.Proxy 
-import Control.Monad.ST 
-import Data.Maybe 
-import System.Random.PCG 
+import GHC.TypeLits ( KnownNat ) 
+import Data.Proxy () 
+import Control.Monad.ST ( runST ) 
+import Data.Maybe () 
+import System.Random.PCG ( create, Variate(uniformR) ) 
 
 
-genRandMatrixPCG ::  Int -> Int -> Double -> Double -> (forall n1 n2. (KnownNat n1, KnownNat n2) => MatrixData DNS U n1 n2 Double)  
-genRandMatrixPCG width height start end = runST $ do 
-    let 
-        widthT  = fromJust $ someNatVal $ toInteger width 
-        heightT = fromJust $ someNatVal $ toInteger height 
-    gen    <- create 
-    to_ret <- UNB.mapM (\(t :: Int) -> uniformR (start :: Double, end :: Double) gen >>= \a -> return (a :: Double)) $ UNB.enumFromN 0 (width * height)
-    return $ (DNS to_ret :: MatrixData DNS U widthT heightT Double) 
+genRandMatrixPCG ::  Int -> Int -> (forall n1 n2. (KnownNat n1, KnownNat n2) => MatrixData DNS U n1 n2 Double)  
+genRandMatrixPCG width height  = let to_ret = UNB.generate (width * height) (\_ -> 12.3245) in (DNS to_ret) :: MatrixData DNS U widthT heightT Double
 
 
 
 bench_dns_big :: IO () 
 bench_dns_big = do
-   (dimension' : max_rand' : _) <- getArgs 
+   (dimension': _) <- getArgs 
    let 
        !dimension = (read dimension') :: Int 
-       !max_rand  = (read max_rand')  :: Int  
-       !m         = (genRandMatrixPCG dimension dimension (1.0 :: Double) (fromIntegral $ max_rand) :: MatrixData DNS U 10000 10000 Double)
-       !v1        = UNB.replicate dimension 1.0 :: UNB.Vector Double
-       !v2        = UNB.replicate dimension 1.0  :: UNB.Vector Double 
+       !m         = (genRandMatrixPCG dimension dimension :: MatrixData DNS U 10000 10000 Double)
+       !v1        = UNB.replicate dimension 3.4568 :: UNB.Vector Double
+       !v2        = UNB.replicate dimension 1.2345  :: UNB.Vector Double 
        !v_func1   = fromVector v1
        !v_func2   = fromVector v2 
+       !alpha     = 1.0 
+       !beta      = 1.0 
        {-# SCC ans_vec "force_gemv_computation" #-} 
-       !ans_vec = toVector $ gemv 1.0 1.0 m v_func1 v_func2
-   return $ ans_vec `deepseq` ()
+       !ans_vec = toVector $ gemv alpha beta m v_func1 v_func2
+   print $ "sum after gemv: " ++ (show $ UNB.sum ans_vec) ++ "\n"
+   return ()
 
 

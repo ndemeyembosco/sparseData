@@ -25,6 +25,9 @@ import Control.Exception (catch)
 hs :: IO ()
 hs = main 
 
+
+
+
 main :: IO ()
 main = do
       print "starting dense benchmark"

@@ -11,7 +11,7 @@ import qualified Data.Vector.Unboxed.Mutable as VM
 import Data.Vector()
 import Prelude hiding (map, zipWith)
 import Control.DeepSeq ( NFData(..), deepseq ) 
-import Data.Array.Repa.Eval (fillChunkedP)
+import Data.Array.Repa.Eval (fillChunkedP, fillInterleavedP)
 import System.IO.Unsafe (unsafePerformIO)
 import GHC.TypeLits
     ( KnownNat, Nat, natVal, someNatVal, SomeNat(SomeNat) ) 
@@ -37,12 +37,13 @@ toVector :: forall n a. (KnownNat n, NFData a, V.Unbox a) => SVector n a -> V.Ve
 toVector (F f) = vals   
        where 
             vals = v `deepseq` v    
+            v = V.unfoldrN len (\i -> if i == 0 then Nothing else Just (f i, i-1) ) (len - 1) 
             !len  = fromIntegral $ natVal (Proxy :: Proxy n)
-            {-# SCC v "toVector_v_par_comp" #-}
-            v    = unsafePerformIO $ do 
-                                (vec :: VM.IOVector e) <- VM.new len   
-                                fillChunkedP len (VM.unsafeWrite vec) f 
-                                V.unsafeFreeze vec 
+            -- {-# SCC v "toVector_v_par_comp" #-}
+            -- v    = unsafePerformIO $ do 
+            --                     (vec :: VM.IOVector e) <- VM.new len   
+            --                     fillInterleavedP len (VM.unsafeWrite vec) f 
+            --                     V.unsafeFreeze vec 
     
 {-# SCC toVector #-}
                                 
@@ -51,7 +52,7 @@ instance (KnownNat n, NFData a, V.Unbox a, Show a) => Show (SVector n a) where
 
 
 fromVector :: forall a n. (NFData a, V.Unbox a) => V.Vector a -> (forall n1. (KnownNat n1, n ~ n1) => SVector n1 a) 
-{-# INLINE fromVector #-}
+{-# INLINABLE fromVector #-}
 fromVector !vec = let !len = V.length vec 
                    in case someNatVal (toInteger len) of 
                         Nothing -> throw InvalidVectorLength 
@@ -127,7 +128,7 @@ class (Matrix r D n1 n2 e, Matrix r U n1 n2 e) => Undelay r n1 n2 e where
 
 instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Matrix r D n1 n2 e where 
     data MatrixData r D n1 n2 e   = SDelayed ((Int, Int) -> e) 
-    {-# INLINE s_index #-}
+    {-# INLINABLE s_index #-}
     s_index (SDelayed f) (!r, !c) = f (r, c) 
     {-# INLINE (#.) #-}
     (#.) (SDelayed m_index_f) v = F dots 
@@ -148,7 +149,7 @@ instance (KnownNat n1, KnownNat n2) => (NFData (MatrixData r D n1 n2 e)) where
 
 delay :: (Matrix r ty n1 n2 e) => MatrixData r ty n1 n2 e -> MatrixData r D n1 n2 e 
 {-# INLINE delay #-}
-delay arr = SDelayed (s_index arr)
+delay !arr = SDelayed (s_index arr)
 
 
 transpose :: (Matrix r ty n1 n2 e) => MatrixData r ty n1 n2 e -> MatrixData r D n2 n1 e

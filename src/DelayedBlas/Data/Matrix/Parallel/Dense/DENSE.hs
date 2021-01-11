@@ -38,16 +38,14 @@ import DelayedBlas.Data.Matrix.Parallel.Generic.Generic as DGeneric
 data DNS 
 instance (KnownNat n1, KnownNat n2, NFData e, Num e, Eq e, V.Unbox e) => Matrix DNS U n1 n2 e where
     data MatrixData DNS U n1 n2 e = DNS { vals :: V.Vector e }
-
-    {-# INLINE s_index #-}
-    s_index (DNS vals) (r, c) = vals V.! (r * w + c)
+    s_index (DNS !vals) (!r, !c)  = vals V.! (r * w + c)
                            where 
-                              w = fromIntegral $ natVal (Proxy :: Proxy n1)
+                              !w = fromIntegral $! natVal (Proxy :: Proxy n1)
                               -- h = fromIntegral $ natVal (Proxy :: Proxy n2)
 
 
 instance (Matrix DNS D n1 n2 e, Matrix DNS U n1 n2 e) => Undelay DNS n1 n2 e where  
-    {-# INLINE s_undelay #-}
+    {-# INLINABLE s_undelay #-}
     s_undelay (SDelayed func) = DNS vals
       where 
           vals = v `deepseq` v 
