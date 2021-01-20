@@ -180,7 +180,7 @@ executable DBlasTest
                        repa ^>=3.4.1.4 
 
 
-executable DBlasBench  
+executable gemv 
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
@@ -188,15 +188,13 @@ executable DBlasBench
   -- type:                exitcode-stdio-1.0
 
   -- The directory where the test specifications are found.
-  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel, testsuite/BenchMark, src, util 
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
 
   -- The entrypoint to the test suite.
-  main-is:             PBenchMark.hs 
+  main-is:             Gemv.hs 
 
   other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
                        DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
-                       BenchMark.DelayedBlas.Parallel.Dense.Big.DENSE,
-                       BenchMark.DelayedBlas.Parallel.PKernels,
                        DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
                        Util.Parser.MMParser
 
@@ -209,7 +207,266 @@ executable DBlasBench
                -fno-prof-count-entries 
                -rtsopts 
                -fllvm 
-               -main-is BenchMark.DelayedBlas.Parallel.PBenchMark.hs -o execs/pbenchmark 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Gemv.hs -o execs/gemv 
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+
+executable axpy 
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             Axpy.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Axpy.hs -o execs/axpy  
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+executable axpydot  
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             AxpyDot.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.AxpyDot.hs -o execs/axpydot   
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+
+executable bicgk   
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             Bicgk.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Bicgk.hs -o execs/bicgk    
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+
+executable gemvt    
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             Gemvt.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Gemvt.hs -o execs/gemvt   
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+
+
+executable gesummv     
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             Gesummv.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Gesummv.hs -o execs/gesummv    
+
+  -- Test dependencies.
+  build-depends:       containers ^>=0.6.2.1,
+                       vector ^>=0.12.1.1,
+                       criterion-measurement ^>=0.1.2.0,
+                       directory ^>=1.3.6.0,
+                       parsec ^>=3.1.14.0,
+                       pcg-random ^>=0.1.3.6,
+                       base >=4.13.0.0, 
+                       vector-strategies ^>=0.4,
+                       parallel ^>=3.2.2.0,
+                       deepseq ^>=1.4.4.0, 
+                       repa ^>=3.4.1.4
+
+
+
+executable trilazy      
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+
+  -- The interface type and version of the test suite.
+  -- type:                exitcode-stdio-1.0
+
+  -- The directory where the test specifications are found.
+  hs-source-dirs:      testsuite/BenchMark/BenchMark/DelayedBlas/Parallel/Dense/, testsuite/BenchMark, src, util 
+
+  -- The entrypoint to the test suite.
+  main-is:             Trilazy.hs 
+
+  other-modules:       DelayedBlas.Data.Matrix.Parallel.Dense.DENSE,
+                       DelayedBlas.Data.Matrix.Parallel.Generic.Generic,
+                       DelayedBlas.Data.Matrix.Parallel.Sparse.COO,
+                       Util.Parser.MMParser
+
+  ghc-options: -O2 
+               -threaded 
+               -eventlog 
+               -fprof-auto 
+               -fprof-cafs 
+               -fforce-recomp 
+               -fno-prof-count-entries 
+               -rtsopts 
+               -fllvm 
+               -main-is BenchMark.DelayedBlas.Parallel.Dense.Trilazy.hs -o execs/trilazy    
 
   -- Test dependencies.
   build-depends:       containers ^>=0.6.2.1,

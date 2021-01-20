@@ -30,7 +30,7 @@ bench_dns_big = do
    (dimension': _) <- getArgs 
    let 
        !dimension = (read dimension') :: Int 
-       !m         = (genRandMatrixPCG dimension dimension :: MatrixData DNS U 10000 10000 Double)
+       !m         = (genRandMatrixPCG dimension dimension :: MatrixData DNS U 20000 20000 Double)
        !v1        = UNB.replicate dimension 3.4568 :: UNB.Vector Double
        !v2        = UNB.replicate dimension 1.2345  :: UNB.Vector Double 
        !v_func1   = fromVector v1

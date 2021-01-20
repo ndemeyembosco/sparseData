@@ -8,7 +8,19 @@ gemv :
 axpy : 
 	$(CC) -o axpy axpy.c $(CFLAGS) $(LDFLAGS) 
 
-all : axpy gemv 
+axpydot: 
+	$(CC) -o axpydot axpydot.c $(CFLAGS) $(LDFLAGS)
+
+gemvt: 
+	$(CC) -o gemvt gemvt.c $(CFLAGS) $(LDFLAGS)
+
+gesummv: 
+	$(CC) -o gesummv gesummv.c $(CFLAGS) $(LDFLAGS)
+
+trilazy: 
+	$(CC) -o trilazy trilazy.c $(CFLAGS) $(LDFLAGS)
+
+all : axpy gemv axpydot gemvt gesummv trilazy
 
 clean: 
-	rm axpy gemv 
+	rm axpy gemv axpydot gesummv trilazy 

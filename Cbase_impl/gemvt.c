@@ -4,7 +4,6 @@
 #include <stdlib.h> 
 
 
-
 double sum (double* arr, int len)
 {
     double to_return = 0;
@@ -18,10 +17,9 @@ double sum (double* arr, int len)
 int main(int argc, char* argv[])
 {
     clock_t start1, end1, start, end; 
-    double elapsed; 
-    int dimension; 
-    
-    start1 = clock();
+    double elapsed;
+    int dimension;
+
     dimension = atoi(argv[1]);
 
     double* X = (double*) malloc(sizeof(double) * dimension); 
@@ -44,24 +42,19 @@ int main(int argc, char* argv[])
         }
         
     }
-    printf("sum X before dgemv: %f \n", sum(X, dimension));
-    printf("sum Y before dgemv: %f \n", sum(Y, dimension));
-    printf("sum A before dgemv: %f \n", sum(A, dimension));
-    
-    
 
-    start = clock();  
-    cblas_dgemv(CblasRowMajor, CblasNoTrans, dimension, dimension, 1.0, A, dimension, X, 1, 1.0, Y, 1); 
-    end = clock(); 
-    elapsed = ((double) (end - start)) / CLOCKS_PER_SEC; 
-    printf("sum after dgemv: %.10e \n", sum(Y, dimension));
-    printf("elapsed time: %f \n", elapsed); 
 
-    free(X); 
+    start = clock();
+    cblas_dgemv(CblasRowMajor, CblasTrans, dimension, dimension, 1.0, A, dimension, X, 1, 1.0, Y, 1);
+    end = clock();
+    elapsed = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("sum after dgemvt: %.10e \n", sum(Y, dimension));
+    printf("elapsed time: %f \n", elapsed);
+
+    free(X);
     free(Y);
-    free(A); 
-    end1 = clock();
-    
-    double elapsed1 = ((double) (end1 - start1) / CLOCKS_PER_SEC);
-    printf("time total: %f \n", elapsed1);
+    free(A);
+
+
+
 }
